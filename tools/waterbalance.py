@@ -453,12 +453,14 @@ class WaterBalanceCalculation(object):
                         vol, mask=mask_2d_groundwater_nodes).sum()
 
                     # todo: remove in case unit is m3 instead of m3/s
-                    total_time[ts_idx, 18] = -1 * (
-                        td_vol - td_vol_pref) / (t - t_pref)
-                    total_time[ts_idx, 19] = -1 * (
-                        od_vol - od_vol_pref) / (t - t_pref)
-                    total_time[ts_idx, 25] = -1 * (
-                        td_vol_gw - td_vol_pref_gw) / (t - t_pref)
+                    total_time[ts_idx, 18] = \
+                        -1 * (td_vol - td_vol_pref) / (t - t_pref)
+
+                    total_time[ts_idx, 19] = \
+                        -1 * (od_vol - od_vol_pref) / (t - t_pref)
+
+                    total_time[ts_idx, 25] = \
+                        -1 * (td_vol_gw - td_vol_pref_gw) / (t - t_pref)
 
                     td_vol_pref = td_vol
                     od_vol_pref = od_vol
