@@ -185,7 +185,8 @@ class WaterBalanceCalculation(object):
             TYPE_2D_BOUND_IN, TYPE_1D_2D, TYPE_1D_2D_IN
         ]
         NTYPE_MAXLEN = 20
-        assert max(map(len, ALL_TYPES)) <= NTYPE_MAXLEN
+        assert max(map(len, ALL_TYPES)) <= NTYPE_MAXLEN, \
+            "NTYPE_MAXLEN insufficiently large for all values"
         NTYPE_DTYPE = 'S%s' % NTYPE_MAXLEN
 
         # LINKS
