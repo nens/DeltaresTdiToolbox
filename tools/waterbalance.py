@@ -169,21 +169,24 @@ class WaterBalanceCalculation(object):
     def get_aggregated_flows(
             self, link_ids, pump_ids, node_ids, model_part, source_nc):
 
-        # TODO: it's better to use record arrays with strings than these
-        # custom codes
-        class Ntype(object):
-            """Constants for link or node type. """
-            # shared by links and nodes
-            TYPE_1D = 10
-            TYPE_2D = 20
-            TYPE_2D_GROUNDWATER = 40
-            # links only
-            TYPE_1D_BOUND_IN = 11
-            TYPE_2D_BOUND_IN = 21
-            TYPE_1D_2D = 30
-            TYPE_1D_2D_IN = 31
+        # constants referenced in record array
+        # shared by links and nodes
+        TYPE_1D = '1d'
+        TYPE_2D = '2d'
+        TYPE_2D_GROUNDWATER = '2d_groundwater'
+        # links only
+        TYPE_1D_BOUND_IN = '1d_bound_in'
+        TYPE_2D_BOUND_IN = '2d_bound_in'
+        TYPE_1D_2D = '1d_2d'
+        TYPE_1D_2D_IN = '1d_2d_in'
 
-        N = Ntype
+        ALL_TYPES = [
+            TYPE_1D, TYPE_2D, TYPE_2D_GROUNDWATER, TYPE_1D_BOUND_IN,
+            TYPE_2D_BOUND_IN, TYPE_1D_2D, TYPE_1D_2D_IN
+        ]
+        NTYPE_MAXLEN = 20
+        assert max(map(len, ALL_TYPES)) <= NTYPE_MAXLEN
+        NTYPE_DTYPE = 'S%s' % NTYPE_MAXLEN
 
         # LINKS
         #######
@@ -191,52 +194,52 @@ class WaterBalanceCalculation(object):
         # create numpy table with flowlink information
         tlink = []  # id, 1d or 2d, in or out
         for idx in link_ids['2d_in']:
-            tlink.append((idx, N.TYPE_2D, 1))
+            tlink.append((idx, TYPE_2D, 1))
         for idx in link_ids['2d_out']:
-            tlink.append((idx, N.TYPE_2D, -1))
+            tlink.append((idx, TYPE_2D, -1))
 
         for idx in link_ids['2d_bound_in']:
-            tlink.append((idx, N.TYPE_2D_BOUND_IN, 1))
+            tlink.append((idx, TYPE_2D_BOUND_IN, 1))
         for idx in link_ids['2d_bound_out']:
-            tlink.append((idx, N.TYPE_2D_BOUND_IN, -1))
+            tlink.append((idx, TYPE_2D_BOUND_IN, -1))
 
         for idx in link_ids['1d_in']:
-            tlink.append((idx, N.TYPE_1D, 1))
+            tlink.append((idx, TYPE_1D, 1))
         for idx in link_ids['1d_out']:
-            tlink.append((idx, N.TYPE_1D, -1))
+            tlink.append((idx, TYPE_1D, -1))
 
         for idx in link_ids['1d_bound_in']:
-            tlink.append((idx, N.TYPE_1D_BOUND_IN, 1))
+            tlink.append((idx, TYPE_1D_BOUND_IN, 1))
         for idx in link_ids['1d_bound_out']:
-            tlink.append((idx, N.TYPE_1D_BOUND_IN, -1))
+            tlink.append((idx, TYPE_1D_BOUND_IN, -1))
 
         for idx in link_ids['2d_groundwater_in']:
-            tlink.append((idx, N.TYPE_2D_GROUNDWATER, 1))
+            tlink.append((idx, TYPE_2D_GROUNDWATER, 1))
         for idx in link_ids['2d_groundwater_out']:
-            tlink.append((idx, N.TYPE_2D_GROUNDWATER, -1))
+            tlink.append((idx, TYPE_2D_GROUNDWATER, -1))
 
         # todo: these settings are strange- this is not what you expect from the direction of the lines
         for idx in link_ids['1d_2d_in']:
-            tlink.append((idx, N.TYPE_1D_2D_IN, -1))
+            tlink.append((idx, TYPE_1D_2D_IN, -1))
         for idx in link_ids['1d_2d_out']:
-            tlink.append((idx, N.TYPE_1D_2D_IN, 1))
+            tlink.append((idx, TYPE_1D_2D_IN, 1))
 
         for idx in link_ids['1d_2d']:
-            tlink.append((idx, N.TYPE_1D_2D, 1))
+            tlink.append((idx, TYPE_1D_2D, 1))
 
         np_link = np.array(
-            tlink, dtype=[('id', int), ('ntype', int), ('dir', int)])
+            tlink, dtype=[('id', int), ('ntype', NTYPE_DTYPE), ('dir', int)])
         # sort for faster reading of netcdf
         np_link.sort(axis=0)
 
         # create masks
-        mask_2d = np_link['ntype'] != N.TYPE_2D
-        mask_1d = np_link['ntype'] != N.TYPE_1D
-        mask_2d_bound = np_link['ntype'] != N.TYPE_2D_BOUND_IN
-        mask_1d_bound = np_link['ntype'] != N.TYPE_1D_BOUND_IN
-        mask_1d_2d_in_out = np_link['ntype'] != N.TYPE_1D_2D_IN
-        mask_1d_2d = np_link['ntype'] != N.TYPE_1D_2D
-        mask_2d_groundwater = np_link['ntype'] != N.TYPE_2D_GROUNDWATER
+        mask_2d = np_link['ntype'] != TYPE_2D
+        mask_1d = np_link['ntype'] != TYPE_1D
+        mask_2d_bound = np_link['ntype'] != TYPE_2D_BOUND_IN
+        mask_1d_bound = np_link['ntype'] != TYPE_1D_BOUND_IN
+        mask_1d_2d_in_out = np_link['ntype'] != TYPE_1D_2D_IN
+        mask_1d_2d = np_link['ntype'] != TYPE_1D_2D
+        mask_2d_groundwater = np_link['ntype'] != TYPE_2D_GROUNDWATER
 
         ds = self.ts_datasource.rows[0].datasource()
 
@@ -345,18 +348,18 @@ class WaterBalanceCalculation(object):
 
         tnode = []  # id, 1d or 2d, in or out
         for idx in node_ids['2d']:
-            tnode.append((idx, N.TYPE_2D))
+            tnode.append((idx, TYPE_2D))
         for idx in node_ids['1d']:
-            tnode.append((idx, N.TYPE_1D))
+            tnode.append((idx, TYPE_1D))
         for idx in node_ids['2d_groundwater']:
-            tnode.append((idx, N.TYPE_2D_GROUNDWATER))
+            tnode.append((idx, TYPE_2D_GROUNDWATER))
 
-        np_node = np.array(tnode, dtype=[('id', int), ('ntype', int)])
+        np_node = np.array(tnode, dtype=[('id', int), ('ntype', NTYPE_DTYPE)])
         np_node.sort(axis=0)
 
-        mask_2d_nodes = np_node['ntype'] != N.TYPE_2D
-        mask_1d_nodes = np_node['ntype'] != N.TYPE_1D
-        mask_2d_groundwater_nodes = np_node['ntype'] != N.TYPE_2D_GROUNDWATER
+        mask_2d_nodes = np_node['ntype'] != TYPE_2D
+        mask_1d_nodes = np_node['ntype'] != TYPE_1D
+        mask_2d_groundwater_nodes = np_node['ntype'] != TYPE_2D_GROUNDWATER
 
         np_2d_node = ma.masked_array(
             np_node['id'], mask=mask_2d_nodes).compressed()
