@@ -464,6 +464,7 @@ class WaterBalanceCalculation(object):
                     od_vol_pref = od_vol
                     td_vol_pref_gw = td_vol_gw
                     t_pref = t
+                # import qtdb; qtdb.set_trace()
 
         total_time = np.nan_to_num(total_time)
 

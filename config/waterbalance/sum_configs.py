@@ -92,13 +92,13 @@ serie_settings = [
         }, {
             'name': '2d groundwater flow',
             'default_method': 'gross',
-            'order': 13,
+            'order': 14,
             'def_color': '0,0,128',
             'series': ['2d_groundwater_in', '2d_groundwater_out'],
         }, {
             'name': 'volume verandering 2d grondwater',
             'default_method': 'net',
-            'order': 14,
+            'order': 15,
             'def_color': '100,149,237',
             'series': ['d_2d_groundwater_vol'],
         }]

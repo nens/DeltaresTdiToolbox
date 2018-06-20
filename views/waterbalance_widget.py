@@ -368,13 +368,17 @@ class WaterBalanceWidget(QDockWidget):
         ]
 
         if model_part == '1d 2d':
-            input_series = dict([input_series[i] for i in
-                                 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 24)])
+            input_series = dict(
+                [input_series[i] for i in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12,
+                 13, 14, 15, 16, 17, 18, 19, 22, 23, 24, 25)])
         elif model_part == '2d':
-            input_series = dict([input_series[i] for i in (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 20, 23, 24)])
-
+            input_series = dict(
+                [input_series[i] for i in (0, 1, 4, 5, 9, 10, 11, 14, 15, 16,
+                 18, 20, 23, 24, 25)])
         elif model_part == '1d':
-            input_series = dict([input_series[i] for i in (2, 3, 6, 7, 8, 10, 11, 12, 13, 17, 19, 21)])
+            input_series = dict(
+                [input_series[i] for i in (2, 3, 6, 7, 8, 10, 11, 12, 13, 17,
+                 19, 21)])
             total_time[:, (10, 11)] = total_time[:, (10, 11)] * -1
 
         for serie_setting in settings.get('items', []):
