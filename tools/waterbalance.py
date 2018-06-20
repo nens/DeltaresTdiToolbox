@@ -169,6 +169,8 @@ class WaterBalanceCalculation(object):
     def get_aggregated_flows(
             self, link_ids, pump_ids, node_ids, model_part, source_nc):
 
+        # TODO: it's better to use record arrays with strings than these
+        # custom codes
         class Ntype(object):
             """Constants for link or node type. """
             # shared by links and nodes
