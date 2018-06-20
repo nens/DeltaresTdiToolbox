@@ -95,6 +95,12 @@ serie_settings = [
             'order': 13,
             'def_color': '0,0,128',
             'series': ['2d_groundwater_in', '2d_groundwater_out'],
+        }, {
+            'name': 'volume verandering 2d grondwater',
+            'default_method': 'net',
+            'order': 14,
+            'def_color': '100,149,237',
+            'series': ['d_2d_groundwater_vol'],
         }]
     }, {
         'name': 'hoofdstromen',
@@ -148,7 +154,6 @@ serie_settings = [
             'order': 7,
             'def_color': '0,0,128',
             'series': ['2d_groundwater_in', '2d_groundwater_out'],
-        }
-        ]
+        }]
     }
 ]
