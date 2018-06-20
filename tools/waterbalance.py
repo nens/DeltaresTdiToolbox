@@ -431,10 +431,12 @@ class WaterBalanceCalculation(object):
                     total_time[ts_idx, 18] = 0
                     total_time[ts_idx, 19] = 0
                     total_time[ts_idx, 25] = 0
-                    vol = ds.get_values_by_timestep_nr('vol', ts_idx, np_node['id'])
-
-                    td_vol_pref = ma.masked_array(vol, mask=mask_2d_nodes).sum()
-                    od_vol_pref = ma.masked_array(vol, mask=mask_1d_nodes).sum()
+                    vol = ds.get_values_by_timestep_nr(
+                        'vol', ts_idx, np_node['id'])
+                    td_vol_pref = ma.masked_array(
+                        vol, mask=mask_2d_nodes).sum()
+                    od_vol_pref = ma.masked_array(
+                        vol, mask=mask_1d_nodes).sum()
                     td_vol_pref_gw = ma.masked_array(
                         vol, mask=mask_2d_groundwater_nodes).sum()
                     t_pref = t
@@ -455,10 +457,8 @@ class WaterBalanceCalculation(object):
                     # todo: remove in case unit is m3 instead of m3/s
                     total_time[ts_idx, 18] = \
                         -1 * (td_vol - td_vol_pref) / (t - t_pref)
-
                     total_time[ts_idx, 19] = \
                         -1 * (od_vol - od_vol_pref) / (t - t_pref)
-
                     total_time[ts_idx, 25] = \
                         -1 * (td_vol_gw - td_vol_pref_gw) / (t - t_pref)
 
