@@ -360,14 +360,18 @@ class WaterBalanceWidget(QDockWidget):
             ('d_1d_vol', 19),
             ('error_2d', 20),
             ('error_1d', 21),
-            ('error_1d_2d', 22)
+            ('error_1d_2d', 22),
+            ('2d_groundwater_in', 23),
+            ('2d_groundwater_out', 24),
+            ('d_2d_groundwater_vol', 25),
+            # groundwater error?
         ]
 
         if model_part == '1d 2d':
             input_series = dict([input_series[i] for i in
-                                 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 22)])
+                                 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 24)])
         elif model_part == '2d':
-            input_series = dict([input_series[i] for i in (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 20)])
+            input_series = dict([input_series[i] for i in (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 20, 23, 24)])
 
         elif model_part == '1d':
             input_series = dict([input_series[i] for i in (2, 3, 6, 7, 8, 10, 11, 12, 13, 17, 19, 21)])

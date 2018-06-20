@@ -2,6 +2,7 @@ import logging
 import os.path
 
 import numpy as np
+import numpy.ma as ma
 from PyQt4.QtCore import Qt
 from qgis.core import QgsFeatureRequest, QgsPoint
 # Import the code for the DockWidget
@@ -31,6 +32,9 @@ class WaterBalanceCalculation(object):
             '1d_2d_in': [],
             '1d_2d_out': [],
             '1d_2d': [],  # direction is always from 2d to 1d
+            '2d_groundwater_in': [],
+            '2d_groundwater_out': [],
+            # TODO: add 1d_2d_groundwater?
         }
         pump_selection = {
             'in': [],
@@ -60,6 +64,8 @@ class WaterBalanceCalculation(object):
                         flow_lines['1d_out'].append(line['id'])
                     elif line['type'] in ['2d']:
                         flow_lines['2d_out'].append(line['id'])
+                    elif line['type'] in ['2d_groundwater']:
+                        flow_lines['2d_groundwater_out'].append(line['id'])
                     elif line['type'] in ['1d_2d']:
                         flow_lines['1d_2d_out'].append(line['id'])
                     else:
@@ -67,8 +73,10 @@ class WaterBalanceCalculation(object):
                 elif incoming:
                     if line['type'] in ['1d', 'v2_pipe', 'v2_channel', 'v2_culvert', 'v2_orifice', 'v2_weir']:
                         flow_lines['1d_in'].append(line['id'])
-                    elif line['type'] == '2d':
+                    elif line['type'] in ['2d']:
                         flow_lines['2d_in'].append(line['id'])
+                    elif line['type'] in ['2d_groundwater']:
+                        flow_lines['2d_groundwater_in'].append(line['id'])
                     elif line['type'] in ['1d_2d']:
                         flow_lines['1d_2d_in'].append(line['id'])
                     else:
@@ -132,7 +140,8 @@ class WaterBalanceCalculation(object):
 
         nodes = {
             '1d': [],
-            '2d': []
+            '2d': [],
+            '2d_groundwater': [],
         }
 
         lines, points, pumps = self.ts_datasource.rows[0].get_result_layers()
@@ -142,93 +151,101 @@ class WaterBalanceCalculation(object):
         if model_part == '1d':
             request_filter.setFilterExpression(u'"type" = \'1d\'')
         elif model_part == '2d':
-            request_filter.setFilterExpression(u'"type" = \'2d\'')
+            request_filter.setFilterExpression(
+                u'"type" = \'2d\' OR "type" = \'2d_groundwater\'')
         else:
-            request_filter.setFilterExpression(u'"type" = \'1d\' or "type" = \'2d\'')
+            request_filter.setFilterExpression(
+                u'"type" = \'1d\' OR "type" = \'2d\' OR "type" = \'2d_groundwater\'')
         # todo: check if boundary nodes could not have rain, infiltration, etc.
 
         for point in points.getFeatures(request_filter):
             # test if lines are crossing boundary of polygon
             if wb_polygon.contains(point.geometry()):
-                nodes[point['type']].append(point['id'])
+                _type = point['type']
+                nodes[_type].append(point['id'])
 
         return nodes
 
-    def get_aggregated_flows(self, link_ids, pump_ids, node_ids, model_part, source_nc):
+    def get_aggregated_flows(
+            self, link_ids, pump_ids, node_ids, model_part, source_nc):
 
-        ds = self.ts_datasource.rows[0].datasource()
+        class Ntype(object):
+            """Constants for link or node type. """
+            # shared by links and nodes
+            TYPE_1D = 10
+            TYPE_2D = 20
+            TYPE_2D_GROUNDWATER = 40
+            # links only
+            TYPE_1D_BOUND_IN = 11
+            TYPE_2D_BOUND_IN = 21
+            TYPE_1D_2D = 30
+            TYPE_1D_2D_IN = 31
+
+        N = Ntype
+
+        # LINKS
+        #######
 
         # create numpy table with flowlink information
         tlink = []  # id, 1d or 2d, in or out
         for idx in link_ids['2d_in']:
-            tlink.append((idx, 20, 1))
+            tlink.append((idx, N.TYPE_2D, 1))
         for idx in link_ids['2d_out']:
-            tlink.append((idx, 20, -1))
+            tlink.append((idx, N.TYPE_2D, -1))
 
         for idx in link_ids['2d_bound_in']:
-            tlink.append((idx, 21, 1))
+            tlink.append((idx, N.TYPE_2D_BOUND_IN, 1))
         for idx in link_ids['2d_bound_out']:
-            tlink.append((idx, 21, -1))
+            tlink.append((idx, N.TYPE_2D_BOUND_IN, -1))
 
         for idx in link_ids['1d_in']:
-            tlink.append((idx, 10, 1))
+            tlink.append((idx, N.TYPE_1D, 1))
         for idx in link_ids['1d_out']:
-            tlink.append((idx, 10, -1))
+            tlink.append((idx, N.TYPE_1D, -1))
 
         for idx in link_ids['1d_bound_in']:
-            tlink.append((idx, 11, 1))
+            tlink.append((idx, N.TYPE_1D_BOUND_IN, 1))
         for idx in link_ids['1d_bound_out']:
-            tlink.append((idx, 11, -1))
+            tlink.append((idx, N.TYPE_1D_BOUND_IN, -1))
+
+        for idx in link_ids['2d_groundwater_in']:
+            tlink.append((idx, N.TYPE_2D_GROUNDWATER, 1))
+        for idx in link_ids['2d_groundwater_out']:
+            tlink.append((idx, N.TYPE_2D_GROUNDWATER, -1))
 
         # todo: these settings are strange- this is not what you expect from the direction of the lines
         for idx in link_ids['1d_2d_in']:
-            tlink.append((idx, 31, -1))
+            tlink.append((idx, N.TYPE_1D_2D_IN, -1))
         for idx in link_ids['1d_2d_out']:
-            tlink.append((idx, 31, 1))
+            tlink.append((idx, N.TYPE_1D_2D_IN, 1))
 
         for idx in link_ids['1d_2d']:
-            tlink.append((idx, 30, 1))
+            tlink.append((idx, N.TYPE_1D_2D, 1))
 
-        np_link = np.array(tlink, dtype=[('id', int), ('ntype', int), ('dir', int)])
+        np_link = np.array(
+            tlink, dtype=[('id', int), ('ntype', int), ('dir', int)])
         # sort for faster reading of netcdf
         np_link.sort(axis=0)
 
         # create masks
-        mask_2d = np_link['ntype'] != 20
-        mask_1d = np_link['ntype'] != 10
-        mask_2d_bound = np_link['ntype'] != 21
-        mask_1d_bound = np_link['ntype'] != 11
-        mask_1d_2d_in_out = np_link['ntype'] != 31
-        mask_1d_2d = np_link['ntype'] != 30
+        mask_2d = np_link['ntype'] != N.TYPE_2D
+        mask_1d = np_link['ntype'] != N.TYPE_1D
+        mask_2d_bound = np_link['ntype'] != N.TYPE_2D_BOUND_IN
+        mask_1d_bound = np_link['ntype'] != N.TYPE_1D_BOUND_IN
+        mask_1d_2d_in_out = np_link['ntype'] != N.TYPE_1D_2D_IN
+        mask_1d_2d = np_link['ntype'] != N.TYPE_1D_2D
+        mask_2d_groundwater = np_link['ntype'] != N.TYPE_2D_GROUNDWATER
 
-        tpump = []
-        for idx in pump_ids['in']:
-            tpump.append((idx, 1))
-        for idx in pump_ids['out']:
-            tpump.append((idx, -1))
-        np_pump = np.array(tpump, dtype=[('id', int), ('dir', int)])
-        np_pump.sort(axis=0)
-
-        # doe the same for node information
-        tnode = []  # id, 1d or 2d, in or out
-        for idx in node_ids['2d']:
-            tnode.append((idx, 20))
-        for idx in node_ids['1d']:
-            tnode.append((idx, 10))
-
-        np_node = np.array(tnode, dtype=[('id', int), ('ntype', int)])
-        np_node.sort(axis=0)
-
-        mask_2d_nodes = np_node['ntype'] != 20
-        mask_1d_nodes = np_node['ntype'] != 10
+        ds = self.ts_datasource.rows[0].datasource()
 
         # get all flows through incoming and outgoing flows
         if source_nc == 'aggregation':
-            ts = ds.get_agg_var_timestamps('q_cum')
+            ts = ds.get_timestamps(parameter='q_cum')
         else:
             ts = ds.get_timestamps(parameter='q')
 
-        total_time = np.zeros(shape=(np.size(ts, 0), 23))
+        NUM_INPUT_SERIES = 26
+        total_time = np.zeros(shape=(np.size(ts, 0), NUM_INPUT_SERIES))
         # total_location = np.zeros(shape=(np.size(np_link, 0), 2))
 
         # links
@@ -253,23 +270,51 @@ class WaterBalanceCalculation(object):
                     neg_pref = flow_neg
 
                 else:
-                    flow = ds.get_values_by_timestep_nr('q', ts_idx, np_link['id']) * np_link['dir']
+                    flow = ds.get_values_by_timestep_nr(
+                        'q', ts_idx, np_link['id']) * np_link['dir']
                     # todo: check unit
                     in_sum = flow.clip(min=0)
                     out_sum = flow.clip(max=0)
 
-                total_time[ts_idx, 0] = np.ma.masked_array(in_sum, mask=mask_2d).sum()
-                total_time[ts_idx, 1] = np.ma.masked_array(out_sum, mask=mask_2d).sum()
-                total_time[ts_idx, 2] = np.ma.masked_array(in_sum, mask=mask_1d).sum()
-                total_time[ts_idx, 3] = np.ma.masked_array(out_sum, mask=mask_1d).sum()
-                total_time[ts_idx, 4] = np.ma.masked_array(in_sum, mask=mask_2d_bound).sum()
-                total_time[ts_idx, 5] = np.ma.masked_array(out_sum, mask=mask_2d_bound).sum()
-                total_time[ts_idx, 6] = np.ma.masked_array(in_sum, mask=mask_1d_bound).sum()
-                total_time[ts_idx, 7] = np.ma.masked_array(out_sum, mask=mask_1d_bound).sum()
-                total_time[ts_idx, 8] = np.ma.masked_array(in_sum, mask=mask_1d_2d_in_out).sum()
-                total_time[ts_idx, 9] = np.ma.masked_array(out_sum, mask=mask_1d_2d_in_out).sum()
-                total_time[ts_idx, 10] = np.ma.masked_array(in_sum, mask=mask_1d_2d).sum()
-                total_time[ts_idx, 11] = np.ma.masked_array(out_sum, mask=mask_1d_2d).sum()
+                total_time[ts_idx, 0] = \
+                    ma.masked_array(in_sum, mask=mask_2d).sum()
+                total_time[ts_idx, 1] = \
+                    ma.masked_array(out_sum, mask=mask_2d).sum()
+                total_time[ts_idx, 2] = \
+                    ma.masked_array(in_sum, mask=mask_1d).sum()
+                total_time[ts_idx, 3] = \
+                    ma.masked_array(out_sum, mask=mask_1d).sum()
+                total_time[ts_idx, 4] = \
+                    ma.masked_array(in_sum, mask=mask_2d_bound).sum()
+                total_time[ts_idx, 5] = \
+                    ma.masked_array(out_sum, mask=mask_2d_bound).sum()
+                total_time[ts_idx, 6] = \
+                    ma.masked_array(in_sum, mask=mask_1d_bound).sum()
+                total_time[ts_idx, 7] = \
+                    ma.masked_array(out_sum, mask=mask_1d_bound).sum()
+                total_time[ts_idx, 8] = \
+                    ma.masked_array(in_sum, mask=mask_1d_2d_in_out).sum()
+                total_time[ts_idx, 9] = \
+                    ma.masked_array(out_sum, mask=mask_1d_2d_in_out).sum()
+                total_time[ts_idx, 10] = \
+                    ma.masked_array(in_sum, mask=mask_1d_2d).sum()
+                total_time[ts_idx, 11] = \
+                    ma.masked_array(out_sum, mask=mask_1d_2d).sum()
+                total_time[ts_idx, 23] = \
+                    ma.masked_array(in_sum, mask=mask_2d_groundwater).sum()
+                total_time[ts_idx, 24] = \
+                    ma.masked_array(out_sum, mask=mask_2d_groundwater).sum()
+
+        # PUMPS
+        #######
+
+        tpump = []
+        for idx in pump_ids['in']:
+            tpump.append((idx, 1))
+        for idx in pump_ids['out']:
+            tpump.append((idx, -1))
+        np_pump = np.array(tpump, dtype=[('id', int), ('dir', int)])
+        np_pump.sort(axis=0)
 
         if np_pump.size > 0:
             # pumps
@@ -293,12 +338,38 @@ class WaterBalanceCalculation(object):
                 total_time[ts_idx, 12] = in_sum.sum()
                 total_time[ts_idx, 13] = out_sum.sum()
 
-        np_2d_node = np.ma.masked_array(np_node['id'], mask=mask_2d_nodes).compressed()
+        # NODES
+        #######
+
+        tnode = []  # id, 1d or 2d, in or out
+        for idx in node_ids['2d']:
+            tnode.append((idx, N.TYPE_2D))
+        for idx in node_ids['1d']:
+            tnode.append((idx, N.TYPE_1D))
+        for idx in node_ids['2d_groundwater']:
+            tnode.append((idx, N.TYPE_2D_GROUNDWATER))
+
+        np_node = np.array(tnode, dtype=[('id', int), ('ntype', int)])
+        np_node.sort(axis=0)
+
+        mask_2d_nodes = np_node['ntype'] != N.TYPE_2D
+        mask_1d_nodes = np_node['ntype'] != N.TYPE_1D
+        mask_2d_groundwater_nodes = np_node['ntype'] != N.TYPE_2D_GROUNDWATER
+
+        np_2d_node = ma.masked_array(
+            np_node['id'], mask=mask_2d_nodes).compressed()
+        np_1d_node = ma.masked_array(
+            np_node['id'], mask=mask_1d_nodes).compressed()
+        # np_2d_groundwater_node = ma.masked_array(
+        #     np_node['id'], mask=mask_2d_groundwater_nodes).compressed()
 
         for parameter, node, pnr, factor in [
             ('rain', np_2d_node, 14, 1),
             ('infiltration_rate', np_2d_node, 15, -1),
-            ('qlat', np_node, 16, 1)]:
+            # TODO: inefficient because we look up q_lat data twice
+            ('q_lat', np_2d_node, 16, 1),
+            ('q_lat', np_1d_node, 17, 1),
+        ]:
 
             if node.size > 0:
                 skip = False
@@ -327,11 +398,15 @@ class WaterBalanceCalculation(object):
                                 ts_idx,
                                 node).sum()  # * dt
 
-                        if parameter == 'qlat':
-                            total_time[ts_idx, pnr] = np.ma.masked_array(values_dt, mask=mask_2d_nodes).sum()
-                            total_time[ts_idx, pnr + 1] = np.ma.masked_array(values_dt, mask=mask_1d_nodes).sum()
-                        else:
-                            total_time[ts_idx, pnr] = values_dt * factor
+                        # if parameter == 'q_lat':
+                        #     import qtdb; qtdb.set_trace()
+                        #     total_time[ts_idx, pnr] = ma.masked_array(
+                        #         values_dt, mask=mask_2d_nodes).sum()
+                        #     total_time[ts_idx, pnr + 1] = ma.masked_array(
+                        #         values_dt, mask=mask_1d_nodes).sum()
+                        # else:
+                        #     total_time[ts_idx, pnr] = values_dt * factor
+                        total_time[ts_idx, pnr] = values_dt * factor
 
         if source_nc == 'aggregation':
             t_pref = 0
@@ -355,44 +430,56 @@ class WaterBalanceCalculation(object):
 
                     total_time[ts_idx, 18] = 0
                     total_time[ts_idx, 19] = 0
+                    total_time[ts_idx, 25] = 0
                     vol = ds.get_values_by_timestep_nr('vol', ts_idx, np_node['id'])
 
-                    td_vol_pref = np.ma.masked_array(vol, mask=mask_2d_nodes).sum()
-                    od_vol_pref = np.ma.masked_array(vol, mask=mask_1d_nodes).sum()
-
+                    td_vol_pref = ma.masked_array(vol, mask=mask_2d_nodes).sum()
+                    od_vol_pref = ma.masked_array(vol, mask=mask_1d_nodes).sum()
+                    td_vol_pref_gw = ma.masked_array(
+                        vol, mask=mask_2d_groundwater_nodes).sum()
                     t_pref = t
-
                 else:
                     vol_ts_idx = ts_idx
                     if source_nc == 'aggregation':
                         # get timestep of corresponding with the aggregation
                         ts_normal = ds.get_timestamps(parameter='q')
                         vol_ts_idx = np.nonzero(ts_normal == t)[0]
-                    vol = ds.get_values_by_timestep_nr('vol', vol_ts_idx, np_node['id'])
+                    vol = ds.get_values_by_timestep_nr(
+                        'vol', vol_ts_idx, np_node['id'])
 
-                    td_vol = np.ma.masked_array(vol, mask=mask_2d_nodes).sum()
-                    od_vol = np.ma.masked_array(vol, mask=mask_1d_nodes).sum()
+                    td_vol = ma.masked_array(vol, mask=mask_2d_nodes).sum()
+                    od_vol = ma.masked_array(vol, mask=mask_1d_nodes).sum()
+                    td_vol_gw = ma.masked_array(
+                        vol, mask=mask_2d_groundwater_nodes).sum()
 
                     # todo: remove in case unit is m3 instead of m3/s
-                    total_time[ts_idx, 18] = -1 * (td_vol - td_vol_pref) / (t - t_pref)
-                    total_time[ts_idx, 19] = -1 * (od_vol - od_vol_pref) / (t - t_pref)
+                    total_time[ts_idx, 18] = -1 * (
+                        td_vol - td_vol_pref) / (t - t_pref)
+                    total_time[ts_idx, 19] = -1 * (
+                        od_vol - od_vol_pref) / (t - t_pref)
+                    total_time[ts_idx, 25] = -1 * (
+                        td_vol_gw - td_vol_pref_gw) / (t - t_pref)
 
                     td_vol_pref = td_vol
                     od_vol_pref = od_vol
+                    td_vol_pref_gw = td_vol_gw
                     t_pref = t
 
         total_time = np.nan_to_num(total_time)
 
         # calculate error 2d
-        total_time[:, 20] = -1 * total_time[:,
-                                 (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18)].sum(axis=1)
+        total_time[:, 20] = -1 * total_time[
+            :, (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18)].sum(axis=1)
+
         # calculate error 1d
-        total_time[:, 21] = -1 * total_time[:, (2, 3, 6, 7, 8, 12, 13, 17, 19)].sum(axis=1) + \
-                            total_time[:, (10, 11)].sum(axis=1)
+        total_time[:, 21] = -1 * total_time[
+            :, (2, 3, 6, 7, 8, 12, 13, 17, 19)
+        ].sum(axis=1) + total_time[:, (10, 11)].sum(axis=1)
 
         # calculate error 1d-2d
-        total_time[:, 22] = -1 * total_time[:,
-                                 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19)].sum(axis=1)
+        total_time[:, 22] = -1 * total_time[
+            :, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19)
+        ].sum(axis=1)
 
         return ts, total_time
 

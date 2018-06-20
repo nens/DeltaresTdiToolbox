@@ -89,6 +89,12 @@ serie_settings = [
             'order': 13,
             'def_color': '62,69,81',
             'series': ['error_1d_2d', 'error_1d', 'error_2d'],
+        }, {
+            'name': '2d groundwater flow',
+            'default_method': 'gross',
+            'order': 13,
+            'def_color': '0,0,128',
+            'series': ['2d_groundwater_in', '2d_groundwater_out'],
         }]
     }, {
         'name': 'hoofdstromen',
@@ -129,13 +135,20 @@ serie_settings = [
             'default_method': 'net',
             'order': 5,
             'def_color': '255,152,0',
-            'series': ['d_2d_vol', 'd_1d_vol'],
+            'series': ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol'],
         }, {
             'name': 'error',
             'default_method': 'net',
             'order': 6,
             'def_color': '62,69,81',
             'series': ['error_1d_2d', 'error_1d', 'error_2d'],
-        }]
+        }, {
+            'name': '2d groundwater flow',
+            'default_method': 'gross',
+            'order': 7,
+            'def_color': '0,0,128',
+            'series': ['2d_groundwater_in', '2d_groundwater_out'],
+        }
+        ]
     }
 ]
