@@ -364,6 +364,7 @@ class WaterBalanceWidget(QDockWidget):
             ('2d_groundwater_in', 23),
             ('2d_groundwater_out', 24),
             ('d_2d_groundwater_vol', 25),
+            ('leak', 26),
             # groundwater error?
         ]
 

@@ -45,7 +45,8 @@ class WaterBalanceCalculation(object):
 
         # all links in and out
         # use bounding box and spatial index to prefilter lines
-        request_filter = QgsFeatureRequest().setFilterRect(wb_polygon.geometry().boundingBox())
+        request_filter = QgsFeatureRequest().setFilterRect(
+            wb_polygon.geometry().boundingBox())
         for line in lines.getFeatures(request_filter):
 
             # test if lines are crossing boundary of polygon
@@ -250,7 +251,7 @@ class WaterBalanceCalculation(object):
         else:
             ts = ds.get_timestamps(parameter='q')
 
-        NUM_INPUT_SERIES = 26
+        NUM_INPUT_SERIES = 27
         total_time = np.zeros(shape=(np.size(ts, 0), NUM_INPUT_SERIES))
         # total_location = np.zeros(shape=(np.size(np_link, 0), 2))
 
@@ -375,6 +376,7 @@ class WaterBalanceCalculation(object):
             # TODO: inefficient because we look up q_lat data twice
             ('q_lat', np_2d_node, 16, 1),
             ('q_lat', np_1d_node, 17, 1),
+            ('leak', np_2d_node, 26, 1),  # TODO: factor +/-?
         ]:
 
             if node.size > 0:
@@ -472,13 +474,13 @@ class WaterBalanceCalculation(object):
                     od_vol_pref = od_vol
                     td_vol_pref_gw = td_vol_gw
                     t_pref = t
-                # import qtdb; qtdb.set_trace()
 
         total_time = np.nan_to_num(total_time)
 
         # calculate error 2d
         total_time[:, 20] = -1 * total_time[
-            :, (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18)].sum(axis=1)
+            :, (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 23, 24, 25)
+        ].sum(axis=1)
 
         # calculate error 1d
         total_time[:, 21] = -1 * total_time[
@@ -487,7 +489,8 @@ class WaterBalanceCalculation(object):
 
         # calculate error 1d-2d
         total_time[:, 22] = -1 * total_time[
-            :, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19)
+            :, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19,
+                23, 24, 25, 26)
         ].sum(axis=1)
 
         return ts, total_time

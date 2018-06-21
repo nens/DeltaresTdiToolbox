@@ -92,15 +92,21 @@ serie_settings = [
         }, {
             'name': '2d groundwater flow',
             'default_method': 'gross',
-            'order': 14,
+            'order': 2.5,
             'def_color': '0,0,128',
             'series': ['2d_groundwater_in', '2d_groundwater_out'],
         }, {
             'name': 'volume verandering 2d grondwater',
             'default_method': 'net',
-            'order': 15,
+            'order': 11.5,
             'def_color': '100,149,237',
             'series': ['d_2d_groundwater_vol'],
+        }, {
+            'name': 'kwel',
+            'default_method': 'net',
+            'order': 10.5,
+            'def_color': '221,160,221',
+            'series': ['leak'],
         }]
     }, {
         'name': 'hoofdstromen',
@@ -119,11 +125,11 @@ serie_settings = [
             'def_color': '0,188,212',
             'series': ['1d_in', '1d_out', 'pump_in', 'pump_out', '1d_bound_in', '1d_bound_out', '1d_2d_in'],
         }, {
-            'name': 'belasting (regen en lateralen',
+            'name': 'belasting (regen en lateralen)',
             'default_method': 'net',
             'order': 3,
             'def_color': '0,150,136',
-            'series': ['rain', 'lat_1d', 'lat_2d'],
+            'series': ['rain', 'lat_1d', 'lat_2d', 'leak'],
         }, {
             'name': 'infiltratie',
             'default_method': 'net',
@@ -151,7 +157,7 @@ serie_settings = [
         }, {
             'name': '2d groundwater flow',
             'default_method': 'gross',
-            'order': 7,
+            'order': 1.5,
             'def_color': '0,0,128',
             'series': ['2d_groundwater_in', '2d_groundwater_out'],
         }]
