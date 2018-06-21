@@ -129,7 +129,7 @@ serie_settings = [
             'default_method': 'net',
             'order': 3,
             'def_color': '0,150,136',
-            'series': ['rain', 'lat_1d', 'lat_2d', 'leak'],
+            'series': ['rain', 'lat_1d', 'lat_2d'],  # TODO: Add leakage?
         }, {
             'name': 'infiltratie',
             'default_method': 'net',
