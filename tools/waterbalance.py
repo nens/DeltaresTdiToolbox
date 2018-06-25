@@ -112,9 +112,13 @@ class WaterBalanceCalculation(object):
 
         # pumps
         # use bounding box and spatial index to prefilter pumps
-        request_filter = QgsFeatureRequest().setFilterRect(wb_polygon.geometry().boundingBox())
+        if pumps is None:
+            f_pumps = []
+        else:
+            request_filter = QgsFeatureRequest().setFilterRect(wb_polygon.geometry().boundingBox())
+            f_pumps = pumps.getFeatures(request_filter)
 
-        for pump in pumps.getFeatures(request_filter):
+        for pump in f_pumps:
             # test if lines are crossing boundary of polygon
             if pump.geometry().crosses(wb_polygon):
                 geom = pump.geometry().asPolyline()
@@ -367,16 +371,22 @@ class WaterBalanceCalculation(object):
             np_node['id'], mask=mask_2d_nodes).compressed()
         np_1d_node = ma.masked_array(
             np_node['id'], mask=mask_1d_nodes).compressed()
-        # np_2d_groundwater_node = ma.masked_array(
-        #     np_node['id'], mask=mask_2d_groundwater_nodes).compressed()
+        np_2d_groundwater_node = ma.masked_array(
+            np_node['id'], mask=mask_2d_groundwater_nodes).compressed()
 
         for parameter, node, pnr, factor in [
             ('rain', np_2d_node, 14, 1),
-            ('infiltration_rate', np_2d_node, 15, -1),
+            # NOTE: infiltration_rate_simple is only enabled if groundwater
+            # is disabled
+            # TODO: in old model results this parameter is called
+            # 'infiltration_rate', thus it is not backwards compatible right
+            # now
+            ('infiltration_rate_simple', np_2d_node, 15, -1),
             # TODO: inefficient because we look up q_lat data twice
             ('q_lat', np_2d_node, 16, 1),
             ('q_lat', np_1d_node, 17, 1),
-            ('leak', np_2d_node, 26, 1),  # TODO: factor +/-?
+            # NOTE: can be a source or sink depending on sign
+            ('leak', np_2d_groundwater_node, 26, 1),
         ]:
 
             if node.size > 0:
@@ -479,7 +489,7 @@ class WaterBalanceCalculation(object):
 
         # calculate error 2d
         total_time[:, 20] = -1 * total_time[
-            :, (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 23, 24, 25)
+            :, (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 23, 24, 25, 26)
         ].sum(axis=1)
 
         # calculate error 1d

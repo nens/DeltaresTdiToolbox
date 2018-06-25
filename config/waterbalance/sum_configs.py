@@ -70,7 +70,7 @@ serie_settings = [
             'default_method': 'net',
             'order': 10,
             'def_color': '121,85,72',
-            'series': ['infiltration_rate'],
+            'series': ['infiltration_rate_simple'],
         }, {
             'name': 'volume verandering 2d',
             'default_method': 'net',
@@ -135,7 +135,7 @@ serie_settings = [
             'default_method': 'net',
             'order': 3,
             'def_color': '50,150,136',
-            'series': ['infiltration_rate'],
+            'series': ['infiltration_rate_simple'],
         }, {
             'name': '1d-2d uitwisseling',
             'default_method': 'net',
@@ -160,6 +160,12 @@ serie_settings = [
             'order': 1.5,
             'def_color': '0,0,128',
             'series': ['2d_groundwater_in', '2d_groundwater_out'],
+        }, {
+            'name': 'leakage',
+            'default_method': 'net',
+            'order': 3.5,
+            'def_color': '221,160,221',
+            'series': ['leak'],
         }]
     }
 ]
