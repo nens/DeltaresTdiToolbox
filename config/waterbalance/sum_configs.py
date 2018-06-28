@@ -102,7 +102,7 @@ serie_settings = [
             'def_color': '100,149,237',
             'series': ['d_2d_groundwater_vol'],
         }, {
-            'name': 'kwel',
+            'name': 'leakage',
             'default_method': 'net',
             'order': 10.5,
             'def_color': '221,160,221',
