@@ -8,6 +8,7 @@ from PyQt4.QtCore import pyqtSignal
 from PyQt4.QtGui import QTableView, QWidget, QVBoxLayout, QHBoxLayout, \
     QSizePolicy, QPushButton, QSpacerItem, QApplication, QDockWidget, QComboBox, QColor, QPen
 from qgis.core import QgsGeometry, QgsCoordinateTransform
+
 from zDeltaresTdiToolbox.config.waterbalance.sum_configs import serie_settings
 from zDeltaresTdiToolbox.models.wb_item import WaterbalanceItemModel
 from zDeltaresTdiToolbox.utils.maptools.polygon_draw import PolygonDrawTool

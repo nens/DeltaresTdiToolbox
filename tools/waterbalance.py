@@ -5,6 +5,7 @@ import numpy as np
 import numpy.ma as ma
 from PyQt4.QtCore import Qt
 from qgis.core import QgsFeatureRequest, QgsPoint
+
 # Import the code for the DockWidget
 from zDeltaresTdiToolbox.views.waterbalance_widget import WaterBalanceWidget
 
@@ -486,6 +487,9 @@ class WaterBalanceCalculation(object):
                     t_pref = t
 
         total_time = np.nan_to_num(total_time)
+
+        # NOTE: the indices below should match the model_part indices in
+        # ``WaterBalanceWidget.make_graph_series``.
 
         # calculate error 2d
         total_time[:, 20] = -1 * total_time[
