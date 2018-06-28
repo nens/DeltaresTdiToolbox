@@ -8,6 +8,7 @@ from PyQt4.QtCore import pyqtSignal
 from PyQt4.QtGui import QTableView, QWidget, QVBoxLayout, QHBoxLayout, \
     QSizePolicy, QPushButton, QSpacerItem, QApplication, QDockWidget, QComboBox, QColor, QPen
 from qgis.core import QgsGeometry, QgsCoordinateTransform
+
 from zDeltaresTdiToolbox.config.waterbalance.sum_configs import serie_settings
 from zDeltaresTdiToolbox.models.wb_item import WaterbalanceItemModel
 from zDeltaresTdiToolbox.utils.maptools.polygon_draw import PolygonDrawTool
@@ -353,24 +354,33 @@ class WaterBalanceWidget(QDockWidget):
             ('pump_in', 12),
             ('pump_out', 13),
             ('rain', 14),
-            ('infiltration_rate', 15),
+            ('infiltration_rate_simple', 15),
             ('lat_2d', 16),
             ('lat_1d', 17),
             ('d_2d_vol', 18),
             ('d_1d_vol', 19),
             ('error_2d', 20),
             ('error_1d', 21),
-            ('error_1d_2d', 22)
+            ('error_1d_2d', 22),
+            ('2d_groundwater_in', 23),
+            ('2d_groundwater_out', 24),
+            ('d_2d_groundwater_vol', 25),
+            ('leak', 26),
+            # groundwater error?
         ]
 
         if model_part == '1d 2d':
-            input_series = dict([input_series[i] for i in
-                                 (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 22)])
+            input_series = dict(
+                [input_series[i] for i in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12,
+                 13, 14, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26)])
         elif model_part == '2d':
-            input_series = dict([input_series[i] for i in (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 20)])
-
+            input_series = dict(
+                [input_series[i] for i in (0, 1, 4, 5, 9, 10, 11, 14, 15, 16,
+                 18, 20, 23, 24, 25, 26)])
         elif model_part == '1d':
-            input_series = dict([input_series[i] for i in (2, 3, 6, 7, 8, 10, 11, 12, 13, 17, 19, 21)])
+            input_series = dict(
+                [input_series[i] for i in (2, 3, 6, 7, 8, 10, 11, 12, 13, 17,
+                 19, 21)])
             total_time[:, (10, 11)] = total_time[:, (10, 11)] * -1
 
         for serie_setting in settings.get('items', []):
@@ -420,7 +430,7 @@ class WaterBalanceWidget(QDockWidget):
                 'default_method': settings['remnant_method'],
                 'order': 100,
                 'color': [int(c) for c in settings['remnant_def_color'].split(',')] + [150],
-                'def_color': settings['remnant_def_color'] + [150],
+                'def_color': settings['remnant_def_color'], #TODO: fix + [150],
                 'series': [key for key in input_series],
                 'ts_series': {}
             }

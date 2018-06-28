@@ -70,7 +70,7 @@ serie_settings = [
             'default_method': 'net',
             'order': 10,
             'def_color': '121,85,72',
-            'series': ['infiltration_rate'],
+            'series': ['infiltration_rate_simple'],
         }, {
             'name': 'volume verandering 2d',
             'default_method': 'net',
@@ -89,6 +89,24 @@ serie_settings = [
             'order': 13,
             'def_color': '62,69,81',
             'series': ['error_1d_2d', 'error_1d', 'error_2d'],
+        }, {
+            'name': '2d groundwater flow',
+            'default_method': 'gross',
+            'order': 2.5,
+            'def_color': '0,0,128',
+            'series': ['2d_groundwater_in', '2d_groundwater_out'],
+        }, {
+            'name': 'volume verandering 2d grondwater',
+            'default_method': 'net',
+            'order': 11.5,
+            'def_color': '100,149,237',
+            'series': ['d_2d_groundwater_vol'],
+        }, {
+            'name': 'leakage',
+            'default_method': 'net',
+            'order': 10.5,
+            'def_color': '221,160,221',
+            'series': ['leak'],
         }]
     }, {
         'name': 'hoofdstromen',
@@ -107,17 +125,17 @@ serie_settings = [
             'def_color': '0,188,212',
             'series': ['1d_in', '1d_out', 'pump_in', 'pump_out', '1d_bound_in', '1d_bound_out', '1d_2d_in'],
         }, {
-            'name': 'belasting (regen en lateralen',
+            'name': 'belasting (regen en lateralen)',
             'default_method': 'net',
             'order': 3,
             'def_color': '0,150,136',
-            'series': ['rain', 'lat_1d', 'lat_2d'],
+            'series': ['rain', 'lat_1d', 'lat_2d'],  # TODO: Add leakage?
         }, {
             'name': 'infiltratie',
             'default_method': 'net',
             'order': 3,
             'def_color': '50,150,136',
-            'series': ['infiltration_rate'],
+            'series': ['infiltration_rate_simple'],
         }, {
             'name': '1d-2d uitwisseling',
             'default_method': 'net',
@@ -129,13 +147,25 @@ serie_settings = [
             'default_method': 'net',
             'order': 5,
             'def_color': '255,152,0',
-            'series': ['d_2d_vol', 'd_1d_vol'],
+            'series': ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol'],
         }, {
             'name': 'error',
             'default_method': 'net',
             'order': 6,
             'def_color': '62,69,81',
             'series': ['error_1d_2d', 'error_1d', 'error_2d'],
+        }, {
+            'name': '2d groundwater flow',
+            'default_method': 'gross',
+            'order': 1.5,
+            'def_color': '0,0,128',
+            'series': ['2d_groundwater_in', '2d_groundwater_out'],
+        }, {
+            'name': 'leakage',
+            'default_method': 'net',
+            'order': 3.5,
+            'def_color': '221,160,221',
+            'series': ['leak'],
         }]
     }
 ]
