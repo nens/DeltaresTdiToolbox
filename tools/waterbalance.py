@@ -1,3 +1,5 @@
+from __future__ import division
+
 import logging
 import os.path
 
@@ -35,6 +37,7 @@ class WaterBalanceCalculation(object):
             '1d_2d': [],  # direction is always from 2d to 1d
             '2d_groundwater_in': [],
             '2d_groundwater_out': [],
+            '2d_vertical_infiltration': [],
             # TODO: add 1d_2d_groundwater?
         }
         pump_selection = {
@@ -84,8 +87,12 @@ class WaterBalanceCalculation(object):
                     else:
                         log.warning('line type not supported. type is %s.', line['type'])
 
-            elif line['type'] == '1d_2d' and line.geometry().within(wb_polygon):
+            elif line['type'] == '1d_2d' and line.geometry().within(
+                    wb_polygon):
                 flow_lines['1d_2d'].append(line['id'])
+            elif line['type'] == '2d_vertical_infiltration' and line.geometry(
+                    ).within(wb_polygon):
+                flow_lines['2d_vertical_infiltration'].append(line['id'])
 
         # find boundaries in polygon
         request_filter = QgsFeatureRequest().setFilterRect(
@@ -185,12 +192,14 @@ class WaterBalanceCalculation(object):
         TYPE_2D_BOUND_IN = '2d_bound_in'
         TYPE_1D_2D = '1d_2d'
         TYPE_1D_2D_IN = '1d_2d_in'
+        TYPE_2D_VERTICAL_INFILTRATION = '2d_vertical_infiltration'
 
         ALL_TYPES = [
             TYPE_1D, TYPE_2D, TYPE_2D_GROUNDWATER, TYPE_1D_BOUND_IN,
-            TYPE_2D_BOUND_IN, TYPE_1D_2D, TYPE_1D_2D_IN
+            TYPE_2D_BOUND_IN, TYPE_1D_2D, TYPE_1D_2D_IN,
+            TYPE_2D_VERTICAL_INFILTRATION,
         ]
-        NTYPE_MAXLEN = 20
+        NTYPE_MAXLEN = 25
         assert max(map(len, ALL_TYPES)) <= NTYPE_MAXLEN, \
             "NTYPE_MAXLEN insufficiently large for all values"
         NTYPE_DTYPE = 'S%s' % NTYPE_MAXLEN
@@ -234,6 +243,9 @@ class WaterBalanceCalculation(object):
         for idx in link_ids['1d_2d']:
             tlink.append((idx, TYPE_1D_2D, 1))
 
+        for idx in link_ids['2d_vertical_infiltration']:
+            tlink.append((idx, TYPE_2D_VERTICAL_INFILTRATION, 1))
+
         np_link = np.array(
             tlink, dtype=[('id', int), ('ntype', NTYPE_DTYPE), ('dir', int)])
         # sort for faster reading of netcdf
@@ -247,6 +259,8 @@ class WaterBalanceCalculation(object):
         mask_1d_2d_in_out = np_link['ntype'] != TYPE_1D_2D_IN
         mask_1d_2d = np_link['ntype'] != TYPE_1D_2D
         mask_2d_groundwater = np_link['ntype'] != TYPE_2D_GROUNDWATER
+        mask_2d_vertical_infiltration = np_link['ntype'] != \
+            TYPE_2D_VERTICAL_INFILTRATION
 
         ds = self.ts_datasource.rows[0].datasource()
 
@@ -256,8 +270,8 @@ class WaterBalanceCalculation(object):
         else:
             ts = ds.get_timestamps(parameter='q')
 
-        NUM_INPUT_SERIES = 27
-        total_time = np.zeros(shape=(np.size(ts, 0), NUM_INPUT_SERIES))
+        len_input_series = len(WaterBalanceWidget.INPUT_SERIES)
+        total_time = np.zeros(shape=(np.size(ts, 0), len_input_series))
         # total_location = np.zeros(shape=(np.size(np_link, 0), 2))
 
         # links
@@ -316,6 +330,16 @@ class WaterBalanceCalculation(object):
                     ma.masked_array(in_sum, mask=mask_2d_groundwater).sum()
                 total_time[ts_idx, 24] = \
                     ma.masked_array(out_sum, mask=mask_2d_groundwater).sum()
+
+                # NOTE: positive vertical infiltration is from surface to
+                # groundwater node. We make this negative because it's
+                # 'sink-like', and to make it in line with the
+                # infiltration_rate_simple which also has a -1 multiplication
+                # factor.
+                total_time[ts_idx, 27] = -1 * ma.masked_array(
+                    in_sum, mask=mask_2d_vertical_infiltration).sum()
+                total_time[ts_idx, 28] = -1 * ma.masked_array(
+                    out_sum, mask=mask_2d_vertical_infiltration).sum()
 
         # PUMPS
         #######
@@ -474,12 +498,11 @@ class WaterBalanceCalculation(object):
                         vol, mask=mask_2d_groundwater_nodes).sum()
 
                     # todo: remove in case unit is m3 instead of m3/s
-                    total_time[ts_idx, 18] = \
-                        -1 * (td_vol - td_vol_pref) / (t - t_pref)
-                    total_time[ts_idx, 19] = \
-                        -1 * (od_vol - od_vol_pref) / (t - t_pref)
+                    dt = t - t_pref
+                    total_time[ts_idx, 18] = -1 * (td_vol - td_vol_pref) / dt
+                    total_time[ts_idx, 19] = -1 * (od_vol - od_vol_pref) / dt
                     total_time[ts_idx, 25] = \
-                        -1 * (td_vol_gw - td_vol_pref_gw) / (t - t_pref)
+                        -1 * (td_vol_gw - td_vol_pref_gw) / dt
 
                     td_vol_pref = td_vol
                     od_vol_pref = od_vol
@@ -492,20 +515,26 @@ class WaterBalanceCalculation(object):
         # ``WaterBalanceWidget.make_graph_series``.
 
         # calculate error 2d
-        total_time[:, 20] = -1 * total_time[
-            :, (0, 1, 4, 5, 9, 10, 11, 14, 15, 16, 18, 23, 24, 25, 26)
-        ].sum(axis=1)
+        idx_2d = tuple(
+            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+            ['2d', '1d_2d'])
+        total_time[:, 20] = -1 * total_time[:, idx_2d].sum(axis=1)
 
         # calculate error 1d
+        idx_1d = tuple(
+            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+            ['1d'])
+        idx_1d_2d = tuple(
+            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+            ['1d_2d'])
         total_time[:, 21] = -1 * total_time[
-            :, (2, 3, 6, 7, 8, 12, 13, 17, 19)
-        ].sum(axis=1) + total_time[:, (10, 11)].sum(axis=1)
+            :, idx_1d].sum(axis=1) + total_time[:, idx_1d_2d].sum(axis=1)
 
         # calculate error 1d-2d
-        total_time[:, 22] = -1 * total_time[
-            :, (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19,
-                23, 24, 25, 26)
-        ].sum(axis=1)
+        idx_1d_and_2d = tuple(
+            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+            ['2d', '1d'])
+        total_time[:, 22] = -1 * total_time[:, idx_1d_and_2d].sum(axis=1)
 
         return ts, total_time
 

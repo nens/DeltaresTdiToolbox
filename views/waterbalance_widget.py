@@ -221,6 +221,38 @@ class WaterBalancePlotWidget(pg.PlotWidget):
 class WaterBalanceWidget(QDockWidget):
     closingWidget = pyqtSignal()
 
+    INPUT_SERIES = [
+        ('2d_in', 0, '2d'),
+        ('2d_out', 1, '2d'),
+        ('1d_in', 2, '1d'),
+        ('1d_out', 3, '1d'),
+        ('2d_bound_in', 4, '2d'),
+        ('2d_bound_out', 5, '2d'),
+        ('1d_bound_in', 6, '1d'),
+        ('1d_bound_out', 7, '1d'),
+        ('1d_2d_in', 8, '1d'),
+        ('1d_2d_out', 9, '2d'),
+        ('2d_to_1d_pos', 10, '1d_2d'),
+        ('2d_to_1d_neg', 11, '1d_2d'),
+        ('pump_in', 12, '1d'),
+        ('pump_out', 13, '1d'),
+        ('rain', 14, '2d'),
+        ('infiltration_rate_simple', 15, '2d'),
+        ('lat_2d', 16, '2d'),
+        ('lat_1d', 17, '1d'),
+        ('d_2d_vol', 18, '2d'),
+        ('d_1d_vol', 19, '1d'),
+        ('error_2d', 20, 'error_2d'),
+        ('error_1d', 21, 'error_1d'),
+        ('error_1d_2d', 22, 'error_1d_2d'),
+        ('2d_groundwater_in', 23, '2d'),
+        ('2d_groundwater_out', 24, '2d'),
+        ('d_2d_groundwater_vol', 25, '2d'),
+        ('leak', 26, '2d'),
+        ('2d_vertical_infiltration_pos', 27, '2d'),
+        ('2d_vertical_infiltration_neg', 28, '2d'),
+    ]
+
     def __init__(self, parent=None, iface=None, ts_datasource=None, wb_calc=None):
         """Constructor."""
         super(WaterBalanceWidget, self).__init__(parent)
@@ -335,53 +367,26 @@ class WaterBalanceWidget(QDockWidget):
 
         return ts, graph_series
 
-    def make_graph_series(self, ts, total_time, model_part, aggregation_type, settings):
-
+    def make_graph_series(
+            self, ts, total_time, model_part, aggregation_type, settings):
         settings = copy.deepcopy(settings)
-        input_series = [
-            ('2d_in', 0),
-            ('2d_out', 1),
-            ('1d_in', 2),
-            ('1d_out', 3),
-            ('2d_bound_in', 4),
-            ('2d_bound_out', 5),
-            ('1d_bound_in', 6),
-            ('1d_bound_out', 7),
-            ('1d_2d_in', 8),
-            ('1d_2d_out', 9),
-            ('2d_to_1d_pos', 10),
-            ('2d_to_1d_neg', 11),
-            ('pump_in', 12),
-            ('pump_out', 13),
-            ('rain', 14),
-            ('infiltration_rate_simple', 15),
-            ('lat_2d', 16),
-            ('lat_1d', 17),
-            ('d_2d_vol', 18),
-            ('d_1d_vol', 19),
-            ('error_2d', 20),
-            ('error_1d', 21),
-            ('error_1d_2d', 22),
-            ('2d_groundwater_in', 23),
-            ('2d_groundwater_out', 24),
-            ('d_2d_groundwater_vol', 25),
-            ('leak', 26),
-            # groundwater error?
-        ]
 
         if model_part == '1d 2d':
-            input_series = dict(
-                [input_series[i] for i in (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12,
-                 13, 14, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26)])
+            input_series = dict([
+                (x, y) for (x, y, z) in self.INPUT_SERIES
+                if z in ['2d', '1d', 'error_1d_2d']])
         elif model_part == '2d':
-            input_series = dict(
-                [input_series[i] for i in (0, 1, 4, 5, 9, 10, 11, 14, 15, 16,
-                 18, 20, 23, 24, 25, 26)])
+            input_series = dict([
+                (x, y) for (x, y, z) in self.INPUT_SERIES
+                if z in ['2d', '1d_2d', 'error_2d']])
         elif model_part == '1d':
-            input_series = dict(
-                [input_series[i] for i in (2, 3, 6, 7, 8, 10, 11, 12, 13, 17,
-                 19, 21)])
-            total_time[:, (10, 11)] = total_time[:, (10, 11)] * -1
+            input_series = dict([
+                (x, y) for (x, y, z) in self.INPUT_SERIES
+                if z in ['1d', '1d_2d', 'error_1d']])
+            idx_2d_to_1d_pos = input_series['2d_to_1d_pos']
+            idx_2d_to_1d_neg = input_series['2d_to_1d_neg']
+            idx_2d_to_1d = (idx_2d_to_1d_pos, idx_2d_to_1d_neg)
+            total_time[:, idx_2d_to_1d] = total_time[:, idx_2d_to_1d] * -1
 
         for serie_setting in settings.get('items', []):
             serie_setting['active'] = True
