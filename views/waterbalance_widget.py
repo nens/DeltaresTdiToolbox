@@ -371,7 +371,6 @@ class WaterBalanceWidget(QDockWidget):
             self, ts, total_time, model_part, aggregation_type, settings):
         settings = copy.deepcopy(settings)
 
-        input_series = self.INPUT_SERIES
         if model_part == '1d 2d':
             input_series = dict([
                 (x, y) for (x, y, z) in self.INPUT_SERIES
