@@ -107,12 +107,6 @@ serie_settings = [
             'order': 10.5,
             'def_color': '221,160,221',
             'series': ['leak'],
-        }, {
-            'name': '2d vertical infiltration',
-            'default_method': 'gross',
-            'order': 10.1,
-            'def_color': '95,158,160',
-            'series': ['2d_vertical_infiltration_pos', '2d_vertical_infiltration_neg'],
         }]
     }, {
         'name': 'hoofdstromen',
@@ -172,12 +166,6 @@ serie_settings = [
             'order': 3.5,
             'def_color': '221,160,221',
             'series': ['leak'],
-        }, {
-            'name': '2d vertical infiltration',
-            'default_method': 'gross',
-            'order': 3.1,
-            'def_color': '95,158,160',
-            'series': ['2d_vertical_infiltration_pos', '2d_vertical_infiltration_neg'],
         }]
     }
 ]

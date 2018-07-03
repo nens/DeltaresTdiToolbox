@@ -249,8 +249,6 @@ class WaterBalanceWidget(QDockWidget):
         ('2d_groundwater_out', 24, '2d'),
         ('d_2d_groundwater_vol', 25, '2d'),
         ('leak', 26, '2d'),
-        ('2d_vertical_infiltration_pos', 27, '2d'),
-        ('2d_vertical_infiltration_neg', 28, '2d'),
     ]
 
     def __init__(self, parent=None, iface=None, ts_datasource=None, wb_calc=None):
