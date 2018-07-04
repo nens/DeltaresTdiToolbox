@@ -254,6 +254,8 @@ class WaterBalanceWidget(QDockWidget):
     def __init__(self, parent=None, iface=None, ts_datasource=None, wb_calc=None):
         """Constructor."""
         super(WaterBalanceWidget, self).__init__(parent)
+
+        self.aggregation_warning_issued_on_start = False
         self.iface = iface
         self.ts_datasource = ts_datasource
         self.calc = wb_calc
@@ -294,6 +296,8 @@ class WaterBalanceWidget(QDockWidget):
 
         self.modelpart_combo_box.currentIndexChanged.connect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.connect(self.update_wb)
+        self.source_nc_combo_box.currentIndexChanged.connect(
+            self.issue_warning)
         self.sum_type_combo_box.currentIndexChanged.connect(self.update_wb)
         self.agg_combo_box.currentIndexChanged.connect(self.update_wb)
 
@@ -320,6 +324,10 @@ class WaterBalanceWidget(QDockWidget):
             self.update_wb()
             self.select_polygon_button.setText(_translate(
                 "DockWidget", "Teken nieuw gebied", None))
+
+            if not self.aggregation_warning_issued_on_start:
+                self.issue_warning()
+                self.aggregation_warning_issued_on_start = True
 
     def redraw_wb(self):
         pass
@@ -487,6 +495,21 @@ class WaterBalanceWidget(QDockWidget):
 
         self.closingWidget.emit()
         event.accept()
+
+    def issue_warning(self):
+        from ThreeDiToolbox.utils.user_messages import pop_up_info
+        mode = self.source_nc_combo_box.currentText()
+        if mode == 'normal':
+            pop_up_info(
+                "You're currently using the 'normal' NetCDF result file which "
+                "may result in a less accurate water balance, depending on "
+                "the output time step that was chosen. Please select the "
+                "'aggregation' option for the most accurate results (this "
+                "requires an aggregation NetCDF file with the following "
+                "variables: cumulative rain, infiltration, laterals, leakage,"
+                " discharge, pump discharge, AND positive and negative "
+                "cumulative discharge).",
+                title="Warning")
 
     def setup_ui(self, dock_widget):
         """
