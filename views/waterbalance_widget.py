@@ -6,7 +6,8 @@ import pyqtgraph as pg
 from PyQt4.QtCore import Qt, QSize, QEvent, QMetaObject
 from PyQt4.QtCore import pyqtSignal
 from PyQt4.QtGui import QTableView, QWidget, QVBoxLayout, QHBoxLayout, \
-    QSizePolicy, QPushButton, QSpacerItem, QApplication, QDockWidget, QComboBox, QColor, QPen
+    QSizePolicy, QPushButton, QSpacerItem, QApplication, QDockWidget,\
+    QComboBox, QColor, QMessageBox
 from qgis.core import QgsGeometry, QgsCoordinateTransform
 
 from zDeltaresTdiToolbox.config.waterbalance.sum_configs import serie_settings
@@ -497,10 +498,11 @@ class WaterBalanceWidget(QDockWidget):
         event.accept()
 
     def issue_warning(self):
-        from ThreeDiToolbox.utils.user_messages import pop_up_info
         mode = self.source_nc_combo_box.currentText()
         if mode == 'normal':
-            pop_up_info(
+            QMessageBox.warning(
+                None,
+                "Warning",
                 "You're currently using the 'normal' NetCDF result file which "
                 "may result in a less accurate water balance, depending on "
                 "the output time step that was chosen. Please select the "
@@ -509,7 +511,7 @@ class WaterBalanceWidget(QDockWidget):
                 "variables: cumulative rain, infiltration, laterals, leakage,"
                 " discharge, pump discharge, AND positive and negative "
                 "cumulative discharge).",
-                title="Warning")
+            )
 
     def setup_ui(self, dock_widget):
         """
