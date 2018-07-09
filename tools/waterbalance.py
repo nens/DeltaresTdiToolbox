@@ -15,6 +15,11 @@ log = logging.getLogger('DeltaresTdi.' + __name__)
 
 
 class WaterBalanceCalculation(object):
+    class AggregationFileNotFoundError(Exception):
+        # TODO: replace this by one in ThreeDiToolbox, which still needs to be
+        # made...
+        pass
+
     def __init__(self, ts_datasource):
         self.ts_datasource = ts_datasource
 
@@ -252,6 +257,11 @@ class WaterBalanceCalculation(object):
         mask_2d_groundwater = np_link['ntype'] != TYPE_2D_GROUNDWATER
 
         ds = self.ts_datasource.rows[0].datasource()
+
+        if source_nc == 'aggregation':
+            if not ds.ds_aggregation:
+                raise self.AggregationFileNotFoundError(
+                    "No aggregation NetCDF file found.")
 
         # get all flows through incoming and outgoing flows
         if source_nc == 'aggregation':

@@ -335,11 +335,24 @@ class WaterBalanceWidget(QDockWidget):
 
     def update_wb(self):
 
-        ts, graph_series = self.calc_wb(
-            self.modelpart_combo_box.currentText(),
-            self.source_nc_combo_box.currentText(),
-            self.agg_combo_box.currentText(),
-            serie_settings[self.sum_type_combo_box.currentText()])
+        try:
+            ts, graph_series = self.calc_wb(
+                self.modelpart_combo_box.currentText(),
+                self.source_nc_combo_box.currentText(),
+                self.agg_combo_box.currentText(),
+                serie_settings[self.sum_type_combo_box.currentText()])
+        except self.calc.AggregationFileNotFoundError:
+            QMessageBox.warning(
+                None,
+                "No aggregation file found",
+                "The 'aggregation' option requires an aggregation NetCDF "
+                "file with the following variables:"
+                "\n\ncumulative:\n- rain\n- infiltration\n- laterals"
+                "\n- leakage\n- discharge\n- pump discharge"
+                "\n\npositive cumulative:\n- discharge"
+                "\n\nnegative cumulative:\n- discharge"
+            )
+            return
 
         self.model.removeRows(0, len(self.model.rows))
 
@@ -500,17 +513,15 @@ class WaterBalanceWidget(QDockWidget):
     def issue_warning(self):
         mode = self.source_nc_combo_box.currentText()
         if mode == 'normal':
-            QMessageBox.warning(
+            QMessageBox.information(
                 None,
-                "Warning",
+                "Information",
                 "You're currently using the 'normal' NetCDF result file which "
-                "may result in a less accurate water balance, depending on "
-                "the output time step that was chosen. Please select the "
-                "'aggregation' option for the most accurate results (this "
-                "requires an aggregation NetCDF file with the following "
-                "variables: cumulative rain, infiltration, laterals, leakage,"
-                " discharge, pump discharge, AND positive and negative "
-                "cumulative discharge).",
+                "may result in a less accurate overall water balance "
+                "compared to the 'aggregation' NetCDF file, depending on the "
+                "output time step that was chosen. Proceed at your own "
+                "discretion. Please select the 'aggregation' option "
+                "for the most accurate results."
             )
 
     def setup_ui(self, dock_widget):
