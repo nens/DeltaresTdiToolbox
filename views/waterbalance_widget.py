@@ -122,8 +122,9 @@ class WaterBalancePlotWidget(pg.PlotWidget):
         self.name = name
         self.showGrid(True, True, 0.5)
         self.setLabel("bottom", "tijd", "s")
-        self.setLabel("left", "Hoeveelheid", "m3/s")
-
+        self.setLabel("left", "Debiet", "m3/s")
+        # Auto SI prefix scaling doesn't work properly with m3, m2 etc.
+        self.getAxis("left").enableAutoSIPrefix(False)
         self.series = {}
 
     def setModel(self, model):
@@ -360,11 +361,19 @@ class WaterBalanceWidget(QDockWidget):
         self.model.insertRows(graph_series['items'])
 
         if self.agg_combo_box.currentText() == 'm3/s':
-            self.plot_widget.setLabel("left", "Hoeveelheid", "m3/s")
+            self.plot_widget.setLabel("left", "Debiet", "m3/s")
         elif self.agg_combo_box.currentText() == 'm3 aggregated':
-            self.plot_widget.setLabel("left", "Hoeveelheid", "m3")
+            self.plot_widget.setLabel("left", "Cumulatieve debiet", "m3")
         else:
             self.plot_widget.setLabel("left", "-", "-")
+
+        # set labels for in and out fluxes
+        text_upper = pg.TextItem(text="in", anchor=(0, 1), angle=-90)
+        text_upper.setPos(-1, 1)
+        text_lower = pg.TextItem(text="uit", anchor=(1, 1), angle=-90)
+        text_lower.setPos(-1, -1)
+        self.plot_widget.addItem(text_upper)
+        self.plot_widget.addItem(text_lower)
 
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
 
