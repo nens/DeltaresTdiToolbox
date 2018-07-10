@@ -369,9 +369,9 @@ class WaterBalanceWidget(QDockWidget):
 
         # set labels for in and out fluxes
         text_upper = pg.TextItem(text="in", anchor=(0, 1), angle=-90)
-        text_upper.setPos(-1, 1)
+        text_upper.setPos(0, 0)
         text_lower = pg.TextItem(text="uit", anchor=(1, 1), angle=-90)
-        text_lower.setPos(-1, -1)
+        text_lower.setPos(0, 0)
         self.plot_widget.addItem(text_upper)
         self.plot_widget.addItem(text_lower)
 
