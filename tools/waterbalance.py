@@ -24,6 +24,22 @@ class WaterBalanceCalculation(object):
         self.ts_datasource = ts_datasource
 
     def get_incoming_and_outcoming_link_ids(self, wb_polygon, model_part):
+        """Returns a tuple of dictionaries with ids by category:
+
+        flow_lines = {
+            '1d_in': [...],
+            '1d_out': [...],
+            '1d_bound_in': [...],
+            ...
+        }
+
+        pump_selection = {
+            'in': [...],
+            'out': [...],
+        }
+
+        returned value = (flow_lines, pump_selection)
+        """
         # todo: implement model_part
 
         log.info('polygon of wb area: %s', wb_polygon.exportToWkt())
@@ -149,6 +165,14 @@ class WaterBalanceCalculation(object):
         return flow_lines, pump_selection
 
     def get_nodes(self, wb_polygon, model_part):
+        """Returns a dictionary with node ids by category:
+
+        {
+            '1d': [..., ...],
+            '2d': [..., ...],
+            '2d_groundwater': [..., ...],
+        }
+        """
 
         log.info('polygon of wb area: %s', wb_polygon.exportToWkt())
 

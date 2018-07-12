@@ -9,6 +9,7 @@ from PyQt4.QtGui import QTableView, QWidget, QVBoxLayout, QHBoxLayout, \
     QSizePolicy, QPushButton, QSpacerItem, QApplication, QDockWidget,\
     QComboBox, QColor, QMessageBox
 from qgis.core import QgsGeometry, QgsCoordinateTransform
+from qgis.core import QgsFeatureRequest
 
 from zDeltaresTdiToolbox.config.waterbalance.sum_configs import serie_settings
 from zDeltaresTdiToolbox.models.wb_item import WaterbalanceItemModel
@@ -377,22 +378,62 @@ class WaterBalanceWidget(QDockWidget):
 
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
 
-        points = self.polygon_tool.map_visualisation.points
+        points = self.polygon_tool.points
         wb_polygon = QgsGeometry.fromPolygon([points])
 
         self.iface.mapCanvas().mapRenderer().destinationCrs()
         lines, points, pumps = self.ts_datasource.rows[0].get_result_layers()
-        tr = QgsCoordinateTransform(self.iface.mapCanvas().mapRenderer().destinationCrs(),
-                                    lines.crs())
+        tr = QgsCoordinateTransform(
+            self.iface.mapCanvas().mapRenderer().destinationCrs(), lines.crs())
         wb_polygon.transform(tr)
 
-        link_ids, pump_ids = self.calc.get_incoming_and_outcoming_link_ids(wb_polygon, model_part)
+        link_ids, pump_ids = self.calc.get_incoming_and_outcoming_link_ids(
+            wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
 
-        ts, total_time = self.calc.get_aggregated_flows(link_ids, pump_ids, node_ids, model_part, source_nc)
+        # NOTE: getting all features again isn't efficient because they're
+        # already calculated in WaterBalanceCalculation
+        link_ids_flat = list(set([i for j in link_ids.values() for i in j]))
+        pump_ids_flat = list(set([i for j in pump_ids.values() for i in j]))
+        node_ids_flat = list(set([i for j in node_ids.values() for i in j]))
+        req_filter_links = QgsFeatureRequest().setFilterFids(link_ids_flat)
+        req_filter_pumps = QgsFeatureRequest().setFilterFids(pump_ids_flat)
+        req_filter_nodes = QgsFeatureRequest().setFilterFids(node_ids_flat)
 
-        graph_series = self.make_graph_series(ts, total_time, model_part, aggregation_type, settings)
+        qgs_lines = []
+        qgs_points = []
+        tr_reverse = QgsCoordinateTransform(
+            lines.crs(),
+            self.iface.mapCanvas().mapRenderer().destinationCrs(),
+        )
 
+        # pumps are often not present
+        if pumps:
+            iter_pumps = pumps.getFeatures(req_filter_pumps)
+        else:
+            iter_pumps = []
+
+        for feat in lines.getFeatures(req_filter_links):
+            geom = feat.geometry()
+            geom.transform(tr_reverse)
+            qgs_lines.append(geom.asPolyline())
+        for feat in iter_pumps:
+            geom = feat.geometry()
+            geom.transform(tr_reverse)
+            # pumps can be visualised as lines
+            qgs_lines.append(geom.asPolyline())
+        for feat in points.getFeatures(req_filter_nodes):
+            geom = feat.geometry()
+            geom.transform(tr_reverse)
+            qgs_points.append(geom.asPoint())
+
+        self.polygon_tool.update_line_point_selection(qgs_lines, qgs_points)
+
+        ts, total_time = self.calc.get_aggregated_flows(
+            link_ids, pump_ids, node_ids, model_part, source_nc)
+
+        graph_series = self.make_graph_series(
+            ts, total_time, model_part, aggregation_type, settings)
 
         return ts, graph_series
 
