@@ -31,6 +31,24 @@ except AttributeError:
 serie_settings = {s['name']: s for s in serie_settings}
 
 
+# some helper functions
+#######################
+
+def _get_request_filter(ids):
+    ids_flat = list(set([i for j in ids.values() for i in j]))
+    return QgsFeatureRequest().setFilterFids(ids_flat)
+
+
+def _get_feature_iterator(layer, request_filter):
+    # mainly pumps are often not present
+    if layer:
+        return layer.getFeatures(request_filter)
+    else:
+        return []
+
+#######################
+
+
 class WaterbalanceItemTable(QTableView):
     hoverExitRow = pyqtSignal(int)
     hoverExitAllRows = pyqtSignal()  # exit the whole widget
@@ -391,14 +409,9 @@ class WaterBalanceWidget(QDockWidget):
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
 
-        # NOTE: getting all features again isn't efficient because they're
-        # already calculated in WaterBalanceCalculation
-        link_ids_flat = list(set([i for j in link_ids.values() for i in j]))
-        pump_ids_flat = list(set([i for j in pump_ids.values() for i in j]))
-        node_ids_flat = list(set([i for j in node_ids.values() for i in j]))
-        req_filter_links = QgsFeatureRequest().setFilterFids(link_ids_flat)
-        req_filter_pumps = QgsFeatureRequest().setFilterFids(pump_ids_flat)
-        req_filter_nodes = QgsFeatureRequest().setFilterFids(node_ids_flat)
+        req_filter_links = _get_request_filter(link_ids)
+        req_filter_pumps = _get_request_filter(pump_ids)
+        req_filter_nodes = _get_request_filter(node_ids)
 
         qgs_lines = []
         qgs_points = []
@@ -407,22 +420,18 @@ class WaterBalanceWidget(QDockWidget):
             self.iface.mapCanvas().mapRenderer().destinationCrs(),
         )
 
-        # pumps are often not present
-        if pumps:
-            iter_pumps = pumps.getFeatures(req_filter_pumps)
-        else:
-            iter_pumps = []
-
-        for feat in lines.getFeatures(req_filter_links):
+        # NOTE: getting all features again isn't efficient because they're
+        # already calculated in WaterBalanceCalculation, but w/e
+        for feat in _get_feature_iterator(lines, req_filter_links):
             geom = feat.geometry()
             geom.transform(tr_reverse)
             qgs_lines.append(geom.asPolyline())
-        for feat in iter_pumps:
+        for feat in _get_feature_iterator(pumps, req_filter_pumps):
             geom = feat.geometry()
             geom.transform(tr_reverse)
             # pumps can be visualised as lines
             qgs_lines.append(geom.asPolyline())
-        for feat in points.getFeatures(req_filter_nodes):
+        for feat in _get_feature_iterator(points, req_filter_nodes):
             geom = feat.geometry()
             geom.transform(tr_reverse)
             qgs_points.append(geom.asPoint())
