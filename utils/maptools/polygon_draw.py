@@ -53,6 +53,9 @@ class SelectionVisualisation(object):
         self.points = points
         self.show()
 
+    def close(self):
+        self.reset()
+
 
 class PolygonDrawMapVisualisation(object):
 
@@ -134,6 +137,7 @@ class PolygonDrawTool(QgsMapTool):
     def close(self):
         self.deactivate()
         self.map_visualisation.close()
+        self.selection_vis.close()
 
     @property
     def points(self):
