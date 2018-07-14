@@ -321,6 +321,7 @@ class WaterBalanceWidget(QDockWidget):
         self.agg_combo_box.currentIndexChanged.connect(self.update_wb)
         self.wb_item_table.hoverEnterRow(self.hover_enter_map_visualization)
 
+        # TODO: is this a good default?
         # initially turn on tool
         self.select_polygon_button.toggle()
 
@@ -397,6 +398,8 @@ class WaterBalanceWidget(QDockWidget):
         self.plot_widget.addItem(text_lower)
 
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
+        # TODO: this method should only calc the waterbalance, we should
+        # decouple logic for drawing the selected geometries from it
 
         points = self.polygon_tool.points
         wb_polygon = QgsGeometry.fromPolygon([points])
