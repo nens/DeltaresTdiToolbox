@@ -286,7 +286,7 @@ class WaterBalanceWidget(QDockWidget):
 
         self.model = WaterbalanceItemModel()
         self.wb_item_table.setModel(self.model)
-        self.wb_item_table.setModel(self.model)
+        self.wb_item_table.hoverEnterRow(self.hover_enter_map_visualization)
         self.plot_widget.setModel(self.model)
 
         # link tool
@@ -324,6 +324,9 @@ class WaterBalanceWidget(QDockWidget):
 
         # initially turn on tool
         self.select_polygon_button.toggle()
+
+    def hover_enter_map_visualization(self, name):
+        pass
 
     def on_polygon_ready(self, points):
         self.iface.mapCanvas().unsetMapTool(self.polygon_tool)
