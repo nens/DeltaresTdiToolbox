@@ -14,11 +14,13 @@ from zDeltaresTdiToolbox.views.waterbalance_widget import WaterBalanceWidget
 log = logging.getLogger('DeltaresTdi.' + __name__)
 
 
+# TODO: move this exception to ThreeDiToolbox
+class AggregationFileNotFoundError(Exception):
+    pass
+
+
 class WaterBalanceCalculation(object):
-    class AggregationFileNotFoundError(Exception):
-        # TODO: replace this by one in ThreeDiToolbox, which still needs to be
-        # made...
-        pass
+    AggregationFileNotFoundError = AggregationFileNotFoundError
 
     def __init__(self, ts_datasource):
         self.ts_datasource = ts_datasource
