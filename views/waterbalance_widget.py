@@ -313,7 +313,6 @@ class WaterBalanceWidget(QDockWidget):
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
         self.reset_waterbalans_button.clicked.connect(self.reset_waterbalans)
         # self.polygon_tool.deactivated.connect(self.update_wb)
-
         self.modelpart_combo_box.currentIndexChanged.connect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.connect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.connect(
