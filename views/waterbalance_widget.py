@@ -286,7 +286,6 @@ class WaterBalanceWidget(QDockWidget):
 
         self.model = WaterbalanceItemModel()
         self.wb_item_table.setModel(self.model)
-        self.wb_item_table.hoverEnterRow(self.hover_enter_map_visualization)
         self.plot_widget.setModel(self.model)
 
         # link tool
@@ -321,6 +320,7 @@ class WaterBalanceWidget(QDockWidget):
             self.issue_warning)
         self.sum_type_combo_box.currentIndexChanged.connect(self.update_wb)
         self.agg_combo_box.currentIndexChanged.connect(self.update_wb)
+        self.wb_item_table.hoverEnterRow(self.hover_enter_map_visualization)
 
         # initially turn on tool
         self.select_polygon_button.toggle()
