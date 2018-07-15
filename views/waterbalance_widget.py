@@ -326,7 +326,16 @@ class WaterBalanceWidget(QDockWidget):
         self.select_polygon_button.toggle()
 
     def hover_enter_map_visualization(self, name):
-        pass
+        types_2d_line = [
+            '2d flow',
+        ]
+        types_2d_node = [
+            'volume verandering 2d',
+        ]
+        # TODO: generate this dict
+        name_to_type = {
+            '2d flow': '2d_line',
+        }
 
     def on_polygon_ready(self, points):
         self.iface.mapCanvas().unsetMapTool(self.polygon_tool)
@@ -398,13 +407,9 @@ class WaterBalanceWidget(QDockWidget):
         self.plot_widget.addItem(text_lower)
 
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
-        # TODO: this method should only calc the waterbalance, we should
-        # decouple logic for drawing the selected geometries from it
-
         points = self.polygon_tool.points
         wb_polygon = QgsGeometry.fromPolygon([points])
 
-        self.iface.mapCanvas().mapRenderer().destinationCrs()
         lines, points, pumps = self.ts_datasource.rows[0].get_result_layers()
         tr = QgsCoordinateTransform(
             self.iface.mapCanvas().mapRenderer().destinationCrs(), lines.crs())
@@ -414,6 +419,19 @@ class WaterBalanceWidget(QDockWidget):
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
 
+        ts, total_time = self.calc.get_aggregated_flows(
+            link_ids, pump_ids, node_ids, model_part, source_nc)
+
+        graph_series = self.make_graph_series(
+            ts, total_time, model_part, aggregation_type, settings)
+
+        self.visualize_selection(
+            link_ids, pump_ids, node_ids, lines, pumps, points)
+
+        return ts, graph_series
+
+    def visualize_selection(
+            self, link_ids, pump_ids, node_ids, lines, pumps, points):
         req_filter_links = _get_request_filter(link_ids)
         req_filter_pumps = _get_request_filter(pump_ids)
         req_filter_nodes = _get_request_filter(node_ids)
@@ -442,14 +460,6 @@ class WaterBalanceWidget(QDockWidget):
             qgs_points.append(geom.asPoint())
 
         self.polygon_tool.update_line_point_selection(qgs_lines, qgs_points)
-
-        ts, total_time = self.calc.get_aggregated_flows(
-            link_ids, pump_ids, node_ids, model_part, source_nc)
-
-        graph_series = self.make_graph_series(
-            ts, total_time, model_part, aggregation_type, settings)
-
-        return ts, graph_series
 
     def make_graph_series(
             self, ts, total_time, model_part, aggregation_type, settings):
@@ -561,8 +571,10 @@ class WaterBalanceWidget(QDockWidget):
         self.close()
 
     def closeEvent(self, event):
-        self.select_polygon_button.toggled.disconnect(self.toggle_polygon_button)
-        self.reset_waterbalans_button.clicked.disconnect(self.reset_waterbalans)
+        self.select_polygon_button.toggled.disconnect(
+            self.toggle_polygon_button)
+        self.reset_waterbalans_button.clicked.disconnect(
+            self.reset_waterbalans)
         # self.polygon_tool.deactivated.disconnect(self.update_wb)
         self.iface.mapCanvas().unsetMapTool(self.polygon_tool)
         self.polygon_tool.close()
