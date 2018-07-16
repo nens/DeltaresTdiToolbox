@@ -9,21 +9,23 @@ RGBA = 255, 0, 0
 
 class SelectionVisualisation(object):
     """Visualize selected lines and points. """
-    def __init__(self, canvas):
+    def __init__(self, canvas, color=QColor(*RGBA)):
         self.canvas = canvas
+        self.color = color
 
-        self.rb_line = QgsRubberBand(self.canvas, QGis.Line)
-        self.rb_line.setColor(Qt.red)
-        self.rb_line.setColor(QColor(*RGBA))
-        self.rb_line.setLineStyle(Qt.DotLine)
-        self.rb_line.setWidth(3)
+        self.rb_line = self._get_rubberband()
 
         self.vertex_markers = []
 
         self.lines = []
         self.points = []
 
-        self.reset()
+    def _get_rubberband(self):
+        rb_line = QgsRubberBand(self.canvas, QGis.Line)
+        rb_line.setColor(self.color)
+        rb_line.setLineStyle(Qt.DotLine)
+        rb_line.setWidth(3)
+        return rb_line
 
     def show(self):
         # visualize lines
@@ -34,7 +36,7 @@ class SelectionVisualisation(object):
             marker = QgsVertexMarker(self.canvas)
             marker.setCenter(p)
             marker.setIconType(QgsVertexMarker.ICON_BOX)
-            marker.setColor(QColor(*RGBA))
+            marker.setColor(self.color)
             marker.setVisible(True)
             self.vertex_markers.append(marker)
 
@@ -42,6 +44,9 @@ class SelectionVisualisation(object):
         self.rb_line.reset(QGis.Line)
         for m in self.vertex_markers:
             m.setVisible(False)
+            # rubber bands are owned by the canvas, so we must explictly
+            # delete them
+            self.canvas.scene().removeItem(m)
         self.vertex_markers = []
         self.lines = []
         self.points = []
@@ -55,6 +60,8 @@ class SelectionVisualisation(object):
 
     def close(self):
         self.reset()
+        # delete the rubberband we've been re-using
+        self.canvas.scene().removeItem(self.rb_line)
 
 
 class PolygonDrawMapVisualisation(object):
@@ -102,6 +109,8 @@ class PolygonDrawTool(QgsMapTool):
 
         self.map_visualisation = PolygonDrawMapVisualisation(self.canvas)
         self.selection_vis = SelectionVisualisation(self.canvas)
+        # self.selection_vis_hover = SelectionVisualisation(
+        #     self.canvas, color=Qt.red)
         self.setButton(button)
 
     def activate(self):
@@ -113,6 +122,7 @@ class PolygonDrawTool(QgsMapTool):
         self.isEmittingPoint = False
         self.map_visualisation.reset()
         self.selection_vis.reset()
+        # self.selection_vis_hover.reset()
 
     def canvasDoubleClickEvent(self, e):
         self.callback_on_draw_finish(self.map_visualisation.points)
@@ -138,6 +148,7 @@ class PolygonDrawTool(QgsMapTool):
         self.deactivate()
         self.map_visualisation.close()
         self.selection_vis.close()
+        # self.selection_vis_hover.close()
 
     @property
     def points(self):
