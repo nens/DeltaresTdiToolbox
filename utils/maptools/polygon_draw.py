@@ -82,6 +82,8 @@ class PolygonDrawMapVisualisation(object):
     def close(self):
         self.points = []
         self.reset()
+        # delete the rubberband we've been re-using
+        self.canvas.scene().removeItem(self.rb)
 
     def show(self):
         self.rb.show()

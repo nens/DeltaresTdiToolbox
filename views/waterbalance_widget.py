@@ -329,6 +329,10 @@ class WaterBalanceWidget(QDockWidget):
         self.select_polygon_button.toggle()
 
     def hover_enter_map_visualization(self, name):
+        if self.select_polygon_button.isChecked():
+            # highlighting when drawing the polygon doesn't look right.
+            # this is the best solution I can think of atm...
+            return
         types_2d_line = [
             '2d flow',
         ]
