@@ -373,20 +373,28 @@ class WaterBalanceWidget(QDockWidget):
         }
         try:
             types_line = name_to_line_types[name]
-            line_geoms = []
-            for tl in types_line:
-                geoms = self.qgs_lines[tl]
-                line_geoms.extend(geoms)
         except KeyError:
             line_geoms = []
+        else:
+            line_geoms = []
+            for t in types_line:
+                try:
+                    geoms = self.qgs_lines[t]
+                except KeyError:
+                    continue
+                line_geoms.extend(geoms)
         try:
             types_node = name_to_node_types[name]
-            point_geoms = []
-            for t in types_node:
-                geoms = self.qgs_points[t]
-                point_geoms.extend(geoms)
         except KeyError:
             point_geoms = []
+        else:
+            point_geoms = []
+            for t in types_node:
+                try:
+                    geoms = self.qgs_points[t]
+                except KeyError:
+                    continue
+                point_geoms.extend(geoms)
         self.polygon_tool.selection_vis.update(line_geoms, point_geoms)
 
     def hover_exit_map_visualization(self, *args):
