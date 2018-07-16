@@ -319,7 +319,8 @@ class WaterBalanceWidget(QDockWidget):
             self.issue_warning)
         self.sum_type_combo_box.currentIndexChanged.connect(self.update_wb)
         self.agg_combo_box.currentIndexChanged.connect(self.update_wb)
-        self.wb_item_table.hoverEnterRow(self.hover_enter_map_visualization)
+        self.wb_item_table.hoverEnterRow.connect(
+            self.hover_enter_map_visualization)
 
         # TODO: is this a good default?
         # initially turn on tool
