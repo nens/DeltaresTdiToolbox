@@ -14,11 +14,13 @@ from zDeltaresTdiToolbox.views.waterbalance_widget import WaterBalanceWidget
 log = logging.getLogger('DeltaresTdi.' + __name__)
 
 
+# TODO: move this exception to ThreeDiToolbox
+class AggregationFileNotFoundError(Exception):
+    pass
+
+
 class WaterBalanceCalculation(object):
-    class AggregationFileNotFoundError(Exception):
-        # TODO: replace this by one in ThreeDiToolbox, which still needs to be
-        # made...
-        pass
+    AggregationFileNotFoundError = AggregationFileNotFoundError
 
     def __init__(self, ts_datasource):
         self.ts_datasource = ts_datasource
@@ -85,7 +87,9 @@ class WaterBalanceCalculation(object):
                     # skip
                     pass
                 elif outgoing:
-                    if line['type'] in ['1d', 'v2_pipe', 'v2_channel', 'v2_culvert', 'v2_orifice', 'v2_weir']:
+                    if line['type'] in [
+                            '1d', 'v2_pipe', 'v2_channel', 'v2_culvert',
+                            'v2_orifice', 'v2_weir']:
                         flow_lines['1d_out'].append(line['id'])
                     elif line['type'] in ['2d']:
                         flow_lines['2d_out'].append(line['id'])
@@ -96,7 +100,9 @@ class WaterBalanceCalculation(object):
                     else:
                         log.warning('line type not supported. type is %s.', line['type'])
                 elif incoming:
-                    if line['type'] in ['1d', 'v2_pipe', 'v2_channel', 'v2_culvert', 'v2_orifice', 'v2_weir']:
+                    if line['type'] in [
+                            '1d', 'v2_pipe', 'v2_channel', 'v2_culvert',
+                            'v2_orifice', 'v2_weir']:
                         flow_lines['1d_in'].append(line['id'])
                     elif line['type'] in ['2d']:
                         flow_lines['2d_in'].append(line['id'])
@@ -197,7 +203,7 @@ class WaterBalanceCalculation(object):
         # todo: check if boundary nodes could not have rain, infiltration, etc.
 
         for point in points.getFeatures(request_filter):
-            # test if lines are crossing boundary of polygon
+            # test if points are contained by polygon
             if wb_polygon.contains(point.geometry()):
                 _type = point['type']
                 nodes[_type].append(point['id'])

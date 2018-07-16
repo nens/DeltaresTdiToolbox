@@ -286,7 +286,6 @@ class WaterBalanceWidget(QDockWidget):
 
         self.model = WaterbalanceItemModel()
         self.wb_item_table.setModel(self.model)
-        self.wb_item_table.setModel(self.model)
         self.plot_widget.setModel(self.model)
 
         # link tool
@@ -314,16 +313,84 @@ class WaterBalanceWidget(QDockWidget):
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
         self.reset_waterbalans_button.clicked.connect(self.reset_waterbalans)
         # self.polygon_tool.deactivated.connect(self.update_wb)
-
         self.modelpart_combo_box.currentIndexChanged.connect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.connect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.connect(
             self.issue_warning)
         self.sum_type_combo_box.currentIndexChanged.connect(self.update_wb)
         self.agg_combo_box.currentIndexChanged.connect(self.update_wb)
+        self.wb_item_table.hoverEnterRow.connect(
+            self.hover_enter_map_visualization)
+        self.wb_item_table.hoverExitAllRows.connect(
+            self.hover_exit_map_visualization)
 
+        # TODO: is this a good default?
         # initially turn on tool
         self.select_polygon_button.toggle()
+
+    def hover_enter_map_visualization(self, name):
+        if self.select_polygon_button.isChecked():
+            # highlighting when drawing the polygon doesn't look right.
+            # this is the best solution I can think of atm...
+            return
+        types_2d_line = [
+            '2d flow',
+        ]
+        types_2d_node = [
+            'volume verandering 2d',
+        ]
+        # TODO 1: generate this dict
+
+        # TODO 2: name alone is not unique enough, e.g. there are two '2d flow'
+        # entries.
+        # SO THIS IS INCORRECT AND NEEDS TO BE FIXED ASAP!
+
+        # TODO 3: using the name as key is INCREDIBLY error prone: one
+        # spelling mistake or a change in sum_configs and it doesn't work
+        # anymore, and because we also catch the KeyErrors you won't even
+        # notice. NEEDS TO BE FIXED
+        name_to_line_types = {
+            '2d flow': ['2d'],
+            '2d boundaries': ['2d_bound'],
+            '1d flow': ['1d'],
+            '1d boundaries': ['1d_bound'],
+            '1d-2d uitwisseling': ['1d_2d'],
+            '1d-2d flow door grens': ['1d_2d'],
+            'pompen': ['pump_or_whatever'],  # TODO: fix this magic string
+            '2d groundwater flow': ['2d_groundwater'],
+        }
+        name_to_node_types = {
+            'volume verandering': ['1d', '2d', '2d_groundwater'],
+            'volume verandering 2d': ['2d'],
+            'volume verandering 1d': ['1d'],
+            'volume verandering 2d grondwater': ['2d_groundwater'],
+            'neerslag': ['2d'],
+            'lateraal 1d': ['1d'],
+            'lateraal 2d': ['2d'],
+            'leakage': ['2d'],
+            'infiltratie': ['2d'],
+            'belasting (regen en lateralen)': ['1d', '2d'],
+        }
+        try:
+            types_line = name_to_line_types[name]
+            line_geoms = []
+            for tl in types_line:
+                geoms = self.qgs_lines[tl]
+                line_geoms.extend(geoms)
+        except KeyError:
+            line_geoms = []
+        try:
+            types_node = name_to_node_types[name]
+            point_geoms = []
+            for t in types_node:
+                geoms = self.qgs_points[t]
+                point_geoms.extend(geoms)
+        except KeyError:
+            point_geoms = []
+        self.polygon_tool.selection_vis.update(line_geoms, point_geoms)
+
+    def hover_exit_map_visualization(self, *args):
+        self.polygon_tool.selection_vis.reset()
 
     def on_polygon_ready(self, points):
         self.iface.mapCanvas().unsetMapTool(self.polygon_tool)
@@ -395,12 +462,11 @@ class WaterBalanceWidget(QDockWidget):
         self.plot_widget.addItem(text_lower)
 
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
+        poly_points = self.polygon_tool.points
+        wb_polygon = QgsGeometry.fromPolygon([poly_points])
 
-        points = self.polygon_tool.points
-        wb_polygon = QgsGeometry.fromPolygon([points])
-
-        self.iface.mapCanvas().mapRenderer().destinationCrs()
-        lines, points, pumps = self.ts_datasource.rows[0].get_result_layers()
+        lines, points, pumps = \
+            self.ts_datasource.rows[0].get_result_layers()
         tr = QgsCoordinateTransform(
             self.iface.mapCanvas().mapRenderer().destinationCrs(), lines.crs())
         wb_polygon.transform(tr)
@@ -409,12 +475,41 @@ class WaterBalanceWidget(QDockWidget):
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
 
+        ts, total_time = self.calc.get_aggregated_flows(
+            link_ids, pump_ids, node_ids, model_part, source_nc)
+
+        graph_series = self.make_graph_series(
+            ts, total_time, model_part, aggregation_type, settings)
+
+        self.prepare_and_visualize_selection(
+            link_ids, pump_ids, node_ids, lines, pumps, points)
+
+        return ts, graph_series
+
+    def prepare_and_visualize_selection(
+            self, link_ids, pump_ids, node_ids, lines, pumps, points,
+            draw_it=False):
         req_filter_links = _get_request_filter(link_ids)
         req_filter_pumps = _get_request_filter(pump_ids)
         req_filter_nodes = _get_request_filter(node_ids)
 
-        qgs_lines = []
-        qgs_points = []
+        line_id_to_type = {}
+        for _type, id_list in link_ids.items():
+            for i in id_list:
+                # we're not interested in in or out types
+                t = _type.rsplit('_out')[0].rsplit('_in')[0]
+                line_id_to_type[i] = t
+        # pump_id_to_type = {}
+        # for _, id_list in pump_ids.items():
+        #     for i in id_list:
+        #         pump_id_to_type[i] = 'all'
+        node_id_to_type = {}
+        for _type, id_list in node_ids.items():
+            for i in id_list:
+                node_id_to_type[i] = _type
+
+        qgs_lines = {}
+        qgs_points = {}
         tr_reverse = QgsCoordinateTransform(
             lines.crs(),
             self.iface.mapCanvas().mapRenderer().destinationCrs(),
@@ -425,26 +520,38 @@ class WaterBalanceWidget(QDockWidget):
         for feat in _get_feature_iterator(lines, req_filter_links):
             geom = feat.geometry()
             geom.transform(tr_reverse)
-            qgs_lines.append(geom.asPolyline())
+            _type = line_id_to_type[feat['id']]
+            try:
+                qgs_lines[_type]
+            except KeyError:
+                qgs_lines[_type] = []
+            qgs_lines[_type].append(geom.asPolyline())
+        qgs_lines['pump_or_whatever'] = []
         for feat in _get_feature_iterator(pumps, req_filter_pumps):
             geom = feat.geometry()
             geom.transform(tr_reverse)
-            # pumps can be visualised as lines
-            qgs_lines.append(geom.asPolyline())
+            qgs_lines['pump_or_whatever'].append(geom.asPolyline())
         for feat in _get_feature_iterator(points, req_filter_nodes):
             geom = feat.geometry()
             geom.transform(tr_reverse)
-            qgs_points.append(geom.asPoint())
+            _type = node_id_to_type[feat['id']]
+            try:
+                qgs_points[_type]
+            except KeyError:
+                qgs_points[_type] = []
+            qgs_points[_type].append(geom.asPoint())
 
-        self.polygon_tool.update_line_point_selection(qgs_lines, qgs_points)
+        self.qgs_lines = qgs_lines
+        self.qgs_points = qgs_points
 
-        ts, total_time = self.calc.get_aggregated_flows(
-            link_ids, pump_ids, node_ids, model_part, source_nc)
+        # draw the lines/points immediately
+        # TODO: probably need to throw this code away since we won't use it
+        if draw_it:
+            qgs_lines_all = [j for i in qgs_lines.values() for j in i]
+            qgs_points_all = [j for i in qgs_points.values() for j in i]
 
-        graph_series = self.make_graph_series(
-            ts, total_time, model_part, aggregation_type, settings)
-
-        return ts, graph_series
+            self.polygon_tool.update_line_point_selection(
+                qgs_lines_all, qgs_points_all)
 
     def make_graph_series(
             self, ts, total_time, model_part, aggregation_type, settings):
@@ -556,8 +663,10 @@ class WaterBalanceWidget(QDockWidget):
         self.close()
 
     def closeEvent(self, event):
-        self.select_polygon_button.toggled.disconnect(self.toggle_polygon_button)
-        self.reset_waterbalans_button.clicked.disconnect(self.reset_waterbalans)
+        self.select_polygon_button.toggled.disconnect(
+            self.toggle_polygon_button)
+        self.reset_waterbalans_button.clicked.disconnect(
+            self.reset_waterbalans)
         # self.polygon_tool.deactivated.disconnect(self.update_wb)
         self.iface.mapCanvas().unsetMapTool(self.polygon_tool)
         self.polygon_tool.close()
@@ -565,6 +674,10 @@ class WaterBalanceWidget(QDockWidget):
         self.modelpart_combo_box.currentIndexChanged.disconnect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.disconnect(self.update_wb)
         self.sum_type_combo_box.currentIndexChanged.disconnect(self.update_wb)
+        self.wb_item_table.hoverEnterRow.disconnect(
+            self.hover_enter_map_visualization)
+        self.wb_item_table.hoverExitAllRows.disconnect(
+            self.hover_exit_map_visualization)
 
         self.closingWidget.emit()
         event.accept()
