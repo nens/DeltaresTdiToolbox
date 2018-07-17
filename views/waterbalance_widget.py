@@ -337,7 +337,7 @@ class WaterBalanceWidget(QDockWidget):
             '2d flow',
         ]
         types_2d_node = [
-            'volume verandering 2d',
+            'volumeverandering 2d',
         ]
         # TODO 1: generate this dict
 
@@ -360,10 +360,10 @@ class WaterBalanceWidget(QDockWidget):
             '2d groundwater flow': ['2d_groundwater'],
         }
         name_to_node_types = {
-            'volume verandering': ['1d', '2d', '2d_groundwater'],
-            'volume verandering 2d': ['2d'],
-            'volume verandering 1d': ['1d'],
-            'volume verandering 2d grondwater': ['2d_groundwater'],
+            'volumeverandering': ['1d', '2d', '2d_groundwater'],
+            'volumeverandering 2d': ['2d'],
+            'volumeverandering 1d': ['1d'],
+            'volumeverandering 2d grondwater': ['2d_groundwater'],
             'neerslag': ['2d'],
             'lateraal 1d': ['1d'],
             'lateraal 2d': ['2d'],
@@ -769,7 +769,7 @@ class WaterBalanceWidget(QDockWidget):
         sizePolicy.setHeightForWidth(
             self.wb_item_table.sizePolicy().hasHeightForWidth())
         self.wb_item_table.setSizePolicy(sizePolicy)
-        self.wb_item_table.setMinimumSize(QSize(250, 0))
+        self.wb_item_table.setMinimumSize(QSize(300, 0))
 
         self.contentLayout.addWidget(self.wb_item_table)
 

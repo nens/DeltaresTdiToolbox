@@ -92,7 +92,7 @@ class WaterbalanceItemModel(BaseModel):
                               column_name='',
                               default_value=select_default_color)
         name = ValueField(show=True,
-                          column_width=130,
+                          column_width=190,
                           column_name='name')
         method = ValueField(show=True,
                             column_width=40,

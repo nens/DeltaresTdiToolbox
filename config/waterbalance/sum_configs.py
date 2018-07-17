@@ -72,13 +72,13 @@ serie_settings = [
             'def_color': '121,85,72',
             'series': ['infiltration_rate_simple'],
         }, {
-            'name': 'volume verandering 2d',
+            'name': 'volumeverandering 2d',
             'default_method': 'net',
             'order': 11,
             'def_color': '244,67,54',
             'series': ['d_2d_vol'],
         }, {
-            'name': 'volume verandering 1d',
+            'name': 'volumeverandering 1d',
             'default_method': 'net',
             'order': 12,
             'def_color': '255,152,0',
@@ -96,7 +96,7 @@ serie_settings = [
             'def_color': '0,0,128',
             'series': ['2d_groundwater_in', '2d_groundwater_out'],
         }, {
-            'name': 'volume verandering 2d grondwater',
+            'name': 'volumeverandering 2d grondwater',
             'default_method': 'net',
             'order': 11.5,
             'def_color': '100,149,237',
@@ -143,7 +143,7 @@ serie_settings = [
             'def_color': '205,220,57',
             'series': ['2d_to_1d_pos', '2d_to_1d_neg'],
         }, {
-            'name': 'volume verandering',
+            'name': 'volumeverandering',
             'default_method': 'net',
             'order': 5,
             'def_color': '255,152,0',
