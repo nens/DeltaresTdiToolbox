@@ -312,6 +312,7 @@ class WaterBalanceWidget(QDockWidget):
         # add listeners
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
         self.reset_waterbalans_button.clicked.connect(self.reset_waterbalans)
+        self.chart_button.clicked.connect(self.show_chart)
         # self.polygon_tool.deactivated.connect(self.update_wb)
         self.modelpart_combo_box.currentIndexChanged.connect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.connect(self.update_wb)
@@ -327,6 +328,26 @@ class WaterBalanceWidget(QDockWidget):
         # TODO: is this a good default?
         # initially turn on tool
         self.select_polygon_button.toggle()
+
+        self._current_calc = None  # cache the results of calculation
+
+    def show_chart(self):
+        # TODO: we need cumulative aggregated results (np.cumsum)
+        import matplotlib.pyplot as plt
+        if not self._current_calc:
+            return
+        ts, ts_series = self._current_calc
+        indices_in = [0, 2, 4, 6]
+        indices_out = [1, 3, 5, 7]
+        end_balance_in = ts_series[-1, indices_in]
+        end_balance_out = ts_series[-1, indices_out]
+        N = 4
+        x = np.arange(N)
+        xlabels = ['2d', '1d', '2d bound', '1d bound']
+        plt.bar(x, end_balance_in)
+        plt.bar(x, end_balance_out)
+        plt.xticks(x, xlabels)
+        plt.show()
 
     def hover_enter_map_visualization(self, name):
         if self.select_polygon_button.isChecked():
@@ -486,6 +507,9 @@ class WaterBalanceWidget(QDockWidget):
         ts, total_time = self.calc.get_aggregated_flows(
             link_ids, pump_ids, node_ids, model_part, source_nc)
 
+        # cache data for barchart
+        self._current_calc = (ts, total_time)
+
         graph_series = self.make_graph_series(
             ts, total_time, model_part, aggregation_type, settings)
 
@@ -582,6 +606,7 @@ class WaterBalanceWidget(QDockWidget):
             idx_2d_to_1d = (idx_2d_to_1d_pos, idx_2d_to_1d_neg)
             total_time[:, idx_2d_to_1d] = total_time[:, idx_2d_to_1d] * -1
 
+        # TODO: figure out why the hell np.clip is needed.
         for serie_setting in settings.get('items', []):
             serie_setting['active'] = True
             serie_setting['method'] = serie_setting['default_method']
@@ -675,6 +700,7 @@ class WaterBalanceWidget(QDockWidget):
             self.toggle_polygon_button)
         self.reset_waterbalans_button.clicked.disconnect(
             self.reset_waterbalans)
+        self.chart_button.clicked.disconnect(self.show_chart)
         # self.polygon_tool.deactivated.disconnect(self.update_wb)
         self.iface.mapCanvas().unsetMapTool(self.polygon_tool)
         self.polygon_tool.close()
@@ -725,10 +751,12 @@ class WaterBalanceWidget(QDockWidget):
         self.select_polygon_button.setCheckable(True)
         self.select_polygon_button.setObjectName("SelectedSideview")
         self.button_bar_hlayout.addWidget(self.select_polygon_button)
-
         self.reset_waterbalans_button = QPushButton(self)
         self.reset_waterbalans_button.setObjectName("ResetSideview")
         self.button_bar_hlayout.addWidget(self.reset_waterbalans_button)
+        self.chart_button = QPushButton(self)
+        self.button_bar_hlayout.addWidget(self.chart_button)
+
         self.modelpart_combo_box = QComboBox(self)
         self.button_bar_hlayout.addWidget(self.modelpart_combo_box)
         self.source_nc_combo_box = QComboBox(self)
@@ -786,5 +814,7 @@ class WaterBalanceWidget(QDockWidget):
             "DockWidget", "3Di waterbalans", None))
         self.select_polygon_button.setText(_translate(
             "DockWidget", "Teken nieuw gebied", None))
+        self.chart_button.setText(_translate(
+            "DockWidget", "Toon eindbalans", None))
         self.reset_waterbalans_button.setText(_translate(
             "DockWidget", "Verberg op kaart", None))
