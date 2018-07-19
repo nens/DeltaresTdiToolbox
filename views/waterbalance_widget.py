@@ -367,6 +367,7 @@ class WaterBalanceWidget(QDockWidget):
         # indices_in = [14, 0, 2, 4, 6]
         # indices_out = [14, 1, 3, 5, 7]
         # import qtdb;qtdb.set_trace()
+        # TODO: use np.clip to determine in/out for dvol
         ts_deltas = np.concatenate(([0], np.diff(ts)))
         end_balance_in = (ts_deltas * ts_series[:, indices_in].T).sum(1)
         end_balance_out = (ts_deltas * ts_series[:, indices_out].T).sum(1)
