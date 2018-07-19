@@ -337,15 +337,50 @@ class WaterBalanceWidget(QDockWidget):
         if not self._current_calc:
             return
         ts, ts_series = self._current_calc
-        indices_in = [0, 2, 4, 6]
-        indices_out = [1, 3, 5, 7]
-        end_balance_in = ts_series[-1, indices_in]
-        end_balance_out = ts_series[-1, indices_out]
-        N = 4
+
+        input_series = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['2d'] and 'groundwater' not in x
+            and 'leak' not in x and '1d_2d' not in x
+        }
+
+        indices_in = []
+        indices_out = []
+        # xlabels = ['rain', '2d', '1d', '2d bound', '1d bound']
+        xlabels = []
+        sorted_keys = sorted(input_series.keys())
+        # for k, v in input_series.items():
+        for k in sorted_keys:
+            v = input_series[k]
+            if k.endswith('_in'):
+                indices_in.append(v)
+            elif k.endswith('_out'):
+                indices_out.append(v)
+            else:
+                indices_in.append(v)
+                indices_out.append(v)
+
+            label = k.rsplit('_in')[0].rsplit('_out')[0]
+            if label not in xlabels:
+                xlabels.append(label)
+
+        # indices_in = [14, 0, 2, 4, 6]
+        # indices_out = [14, 1, 3, 5, 7]
+        # import qtdb;qtdb.set_trace()
+        ts_deltas = np.concatenate(([0], np.diff(ts)))
+        end_balance_in = (ts_deltas * ts_series[:, indices_in].T).sum(1)
+        end_balance_out = (ts_deltas * ts_series[:, indices_out].T).sum(1)
+
+        N = len(xlabels)
         x = np.arange(N)
-        xlabels = ['2d', '1d', '2d bound', '1d bound']
-        plt.bar(x, end_balance_in)
+
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
         plt.bar(x, end_balance_out)
+        plt.bar(x, end_balance_in)
         plt.xticks(x, xlabels)
         plt.show()
 
