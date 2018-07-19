@@ -367,7 +367,8 @@ class WaterBalanceWidget(QDockWidget):
         # indices_in = [14, 0, 2, 4, 6]
         # indices_out = [14, 1, 3, 5, 7]
         # import qtdb;qtdb.set_trace()
-        # TODO: use np.clip to determine in/out for dvol
+        # TODO: use np.clip to determine in/out for dvol (for flows this
+        # shouldn't matter)
         ts_deltas = np.concatenate(([0], np.diff(ts)))
         end_balance_in_tmp = (
             ts_deltas * ts_series[:, indices_in].T).clip(min=0)
@@ -384,9 +385,12 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels, indices_in)
         )
 
+        plt.axhline(color='black', lw=.5)
         plt.bar(x, end_balance_in, label='In')
         plt.bar(x, end_balance_out, label='Out')
-        plt.xticks(x, xlabels)
+        plt.xticks(x, xlabels, rotation=45)
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.3)
         plt.title('2D')
         plt.ylabel('volume (m3)')
         plt.legend()
@@ -858,6 +862,6 @@ class WaterBalanceWidget(QDockWidget):
         self.select_polygon_button.setText(_translate(
             "DockWidget", "Teken nieuw gebied", None))
         self.chart_button.setText(_translate(
-            "DockWidget", "Toon eindbalans", None))
+            "DockWidget", "Toon totale balans", None))
         self.reset_waterbalans_button.setText(_translate(
             "DockWidget", "Verberg op kaart", None))
