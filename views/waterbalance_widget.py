@@ -369,8 +369,12 @@ class WaterBalanceWidget(QDockWidget):
         # import qtdb;qtdb.set_trace()
         # TODO: use np.clip to determine in/out for dvol
         ts_deltas = np.concatenate(([0], np.diff(ts)))
-        end_balance_in = (ts_deltas * ts_series[:, indices_in].T).sum(1)
-        end_balance_out = (ts_deltas * ts_series[:, indices_out].T).sum(1)
+        end_balance_in_tmp = (
+            ts_deltas * ts_series[:, indices_in].T).clip(min=0)
+        end_balance_out_tmp = (
+            ts_deltas * ts_series[:, indices_out].T).clip(max=0)
+        end_balance_in = end_balance_in_tmp.sum(1)
+        end_balance_out = end_balance_out_tmp.sum(1)
 
         N = len(xlabels)
         x = np.arange(N)
@@ -380,9 +384,12 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels, indices_in)
         )
 
-        plt.bar(x, end_balance_out)
-        plt.bar(x, end_balance_in)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels)
+        plt.title('2D')
+        plt.ylabel('volume (m3)')
+        plt.legend()
         plt.show()
 
     def hover_enter_map_visualization(self, name):
