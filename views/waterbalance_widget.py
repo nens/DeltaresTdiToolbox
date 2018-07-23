@@ -1,6 +1,7 @@
 import copy
 import logging
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pyqtgraph as pg
 from PyQt4.QtCore import Qt, QSize, QEvent, QMetaObject
@@ -312,6 +313,7 @@ class WaterBalanceWidget(QDockWidget):
         # add listeners
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
         self.reset_waterbalans_button.clicked.connect(self.reset_waterbalans)
+        self.chart_button.clicked.connect(self.show_chart)
         # self.polygon_tool.deactivated.connect(self.update_wb)
         self.modelpart_combo_box.currentIndexChanged.connect(self.update_wb)
         self.source_nc_combo_box.currentIndexChanged.connect(self.update_wb)
@@ -327,6 +329,140 @@ class WaterBalanceWidget(QDockWidget):
         # TODO: is this a good default?
         # initially turn on tool
         self.select_polygon_button.toggle()
+
+        self.__current_calc = None  # cache the results of calculation
+
+    @staticmethod
+    def _create_indices_and_labels(input_series):
+        indices_in = []
+        indices_out = []
+        xlabels = []
+        sorted_keys = sorted(input_series.keys())
+        # for k, v in input_series.items():
+        for k in sorted_keys:
+            v = input_series[k]
+            # CAUTION: these two flow types only have in or out
+            if k == '1d_2d_in' or k == '1d_2d_out':
+                indices_in.append(v)
+                indices_out.append(v)
+            elif k.endswith('_in'):
+                indices_in.append(v)
+            elif k.endswith('_out'):
+                indices_out.append(v)
+            else:
+                indices_in.append(v)
+                indices_out.append(v)
+
+            label = k.rsplit('_in')[0].rsplit('_out')[0]
+            if label not in xlabels:
+                xlabels.append(label)
+        return indices_in, indices_out, xlabels
+
+    def _calc_in_out_balance(self, indices_in, indices_out, xlabels):
+        ts, ts_series = self._current_calc
+
+        # NOTE: we're using np.clip to determine in/out for dvol (for flows
+        # /discharges this shouldn't matter I THINK)
+        ts_deltas = np.concatenate(([0], np.diff(ts)))
+        end_balance_in_tmp = (
+            ts_deltas * ts_series[:, indices_in].T).clip(min=0)
+        end_balance_out_tmp = (
+            ts_deltas * ts_series[:, indices_out].T).clip(max=0)
+        end_balance_in = end_balance_in_tmp.sum(1)
+        end_balance_out = end_balance_out_tmp.sum(1)
+        return end_balance_in, end_balance_out
+
+    def show_chart(self):
+        # TODO: we need cumulative aggregated results (np.cumsum)
+        if not self._current_calc:
+            return
+
+        input_series_2d = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['2d'] and 'groundwater' not in x
+            and 'leak' not in x
+        }
+
+        input_series_1d = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['1d']
+        }
+
+        input_series_2d_groundwater = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['2d'] and 'groundwater' in x
+            or 'leak' in x
+        }
+        # xlabels = ['rain', '2d', '1d', '2d bound', '1d bound']
+        # indices_in = [14, 0, 2, 4, 6]
+        # indices_out = [14, 1, 3, 5, 7]
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_2d)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
+        plt.figure(1)  # TODO: what does this do?
+
+        plt.subplot(221)
+        plt.axhline(color='black', lw=.5)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
+        plt.xticks(x, xlabels, rotation=45)
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.3, hspace=2)
+        plt.title('2D')
+        plt.ylabel('volume (m3)')
+        plt.legend()
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_1d)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
+        plt.subplot(222)
+        plt.axhline(color='black', lw=.5)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
+        plt.xticks(x, xlabels, rotation=45)
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.3, hspace=2)
+        plt.title('1D')
+        plt.ylabel('volume (m3)')
+        plt.legend()
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_2d_groundwater)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
+        plt.subplot(223)
+        plt.axhline(color='black', lw=.5)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
+        plt.xticks(x, xlabels, rotation=45)
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.3, hspace=2)
+        plt.title('2D groundwater')
+        plt.ylabel('volume (m3)')
+        plt.legend()
+
+        plt.show()
 
     def hover_enter_map_visualization(self, name):
         if self.select_polygon_button.isChecked():
@@ -355,8 +491,11 @@ class WaterBalanceWidget(QDockWidget):
             '1d flow': ['1d'],
             '1d boundaries': ['1d_bound'],
             '1d-2d uitwisseling': ['1d_2d'],
-            '1d-2d flow door grens': ['1d_2d'],
-            'pompen': ['pump_or_whatever'],  # TODO: fix this magic string
+             # TODO: '1d_2d_intersected' and 'pump_or_whatever' are magic
+             # strings that we ad-hoc created in the prepare_and_visualize
+             # function. A better solution would be nicer...
+            '1d-2d flow door grens': ['1d_2d_intersected'],
+            'pompen': ['pump_or_whatever'],
             '2d groundwater flow': ['2d_groundwater'],
         }
         name_to_node_types = {
@@ -469,6 +608,19 @@ class WaterBalanceWidget(QDockWidget):
         self.plot_widget.addItem(text_upper)
         self.plot_widget.addItem(text_lower)
 
+    @property
+    def _current_calc(self):
+        return self.__current_calc
+
+    @_current_calc.setter
+    def _current_calc(self, ts_total_time_tuple):
+        # NOTE: flips the sign on dvol to make things more intuitive for
+        # barcharts
+        ts, ts_series = ts_total_time_tuple
+        ts_series = ts_series.copy()
+        ts_series[:, [18, 19, 25]] = -1 * ts_series[:, [18, 19, 25]]
+        self.__current_calc = (ts, ts_series)
+
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
         poly_points = self.polygon_tool.points
         wb_polygon = QgsGeometry.fromPolygon([poly_points])
@@ -485,6 +637,9 @@ class WaterBalanceWidget(QDockWidget):
 
         ts, total_time = self.calc.get_aggregated_flows(
             link_ids, pump_ids, node_ids, model_part, source_nc)
+
+        # cache data for barchart
+        self._current_calc = (ts, total_time)
 
         graph_series = self.make_graph_series(
             ts, total_time, model_part, aggregation_type, settings)
@@ -504,8 +659,13 @@ class WaterBalanceWidget(QDockWidget):
         line_id_to_type = {}
         for _type, id_list in link_ids.items():
             for i in id_list:
-                # we're not interested in in or out types
-                t = _type.rsplit('_out')[0].rsplit('_in')[0]
+                # we're not interested in in or out types, but for 1d_2d_in
+                # and 1d_2d_out we need to employ this hack because these
+                # types end in '_in'/'_out'
+                if _type == '1d_2d_in' or _type == '1d_2d_out':
+                    t = '1d_2d_intersected'
+                else:
+                    t = _type.rsplit('_out')[0].rsplit('_in')[0]
                 line_id_to_type[i] = t
         # pump_id_to_type = {}
         # for _, id_list in pump_ids.items():
@@ -582,6 +742,7 @@ class WaterBalanceWidget(QDockWidget):
             idx_2d_to_1d = (idx_2d_to_1d_pos, idx_2d_to_1d_neg)
             total_time[:, idx_2d_to_1d] = total_time[:, idx_2d_to_1d] * -1
 
+        # TODO: figure out why the hell np.clip is needed.
         for serie_setting in settings.get('items', []):
             serie_setting['active'] = True
             serie_setting['method'] = serie_setting['default_method']
@@ -675,6 +836,7 @@ class WaterBalanceWidget(QDockWidget):
             self.toggle_polygon_button)
         self.reset_waterbalans_button.clicked.disconnect(
             self.reset_waterbalans)
+        self.chart_button.clicked.disconnect(self.show_chart)
         # self.polygon_tool.deactivated.disconnect(self.update_wb)
         self.iface.mapCanvas().unsetMapTool(self.polygon_tool)
         self.polygon_tool.close()
@@ -725,10 +887,12 @@ class WaterBalanceWidget(QDockWidget):
         self.select_polygon_button.setCheckable(True)
         self.select_polygon_button.setObjectName("SelectedSideview")
         self.button_bar_hlayout.addWidget(self.select_polygon_button)
-
         self.reset_waterbalans_button = QPushButton(self)
         self.reset_waterbalans_button.setObjectName("ResetSideview")
         self.button_bar_hlayout.addWidget(self.reset_waterbalans_button)
+        self.chart_button = QPushButton(self)
+        self.button_bar_hlayout.addWidget(self.chart_button)
+
         self.modelpart_combo_box = QComboBox(self)
         self.button_bar_hlayout.addWidget(self.modelpart_combo_box)
         self.source_nc_combo_box = QComboBox(self)
@@ -786,5 +950,7 @@ class WaterBalanceWidget(QDockWidget):
             "DockWidget", "3Di waterbalans", None))
         self.select_polygon_button.setText(_translate(
             "DockWidget", "Teken nieuw gebied", None))
+        self.chart_button.setText(_translate(
+            "DockWidget", "Toon totale balans", None))
         self.reset_waterbalans_button.setText(_translate(
             "DockWidget", "Verberg op kaart", None))
