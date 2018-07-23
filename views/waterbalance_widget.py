@@ -274,7 +274,33 @@ class WaterBalanceWidget(QDockWidget):
         ('leak', 26, '2d'),
     ]
 
-    def __init__(self, parent=None, iface=None, ts_datasource=None, wb_calc=None):
+    # maps INPUT_SERIES var names to x axis labels
+    BARCHART_XLABEL_MAPPING = {
+        '1d_2d_in': '1D-2D (crossing boundary)',
+        '1d_2d_out': '1D-2D (crossing boundary)',
+        'd_2d_vol': '2D storage',
+        'd_1d_vol': '1D storage',
+        'd_2d_groundwater_vol': '2D groundwater storage',
+        'leak': 'leakage',
+        'infiltration_rate_simple': 'infiltration',
+        '2d_in': '2D flow',
+        '2d_out': '2D flow',
+        '1d_in': '1D flow',
+        '1d_out': '1D flow',
+        '2d_groundwater_in': '2D groundwater flow',
+        '2d_groundwater_out': '2D groundwater flow',
+        'lat_2d': '2D laterals',
+        'lat_1d': '1D laterals',
+        '2d_bound_in': '2D boundaries',
+        '2d_bound_out': '2D boundaries',
+        '1d_bound_in': '1D boundaries',
+        '1d_bound_out': '1D boundaries',
+        '2d_to_1d_neg': '2D to 1D',
+        '2d_to_1d_pos': '2D to 1D',
+    }
+
+    def __init__(
+            self, parent=None, iface=None, ts_datasource=None, wb_calc=None):
         """Constructor."""
         super(WaterBalanceWidget, self).__init__(parent)
 
@@ -309,7 +335,7 @@ class WaterBalanceWidget(QDockWidget):
 
         self.agg_combo_box.insertItems(
             0,
-            ['m3/s', 'm3 aggregated'])
+            ['m3/s', 'm3 cumulative'])
 
         # add listeners
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
@@ -333,8 +359,8 @@ class WaterBalanceWidget(QDockWidget):
 
         self.__current_calc = None  # cache the results of calculation
 
-    @staticmethod
-    def _create_indices_and_labels(input_series):
+    @classmethod
+    def _create_indices_and_labels(cls, input_series):
         indices_in = []
         indices_out = []
         xlabels = []
@@ -346,6 +372,10 @@ class WaterBalanceWidget(QDockWidget):
             if k == '1d_2d_in' or k == '1d_2d_out':
                 indices_in.append(v)
                 indices_out.append(v)
+            elif k == '2d_to_1d_pos':
+                indices_in.append(v)
+            elif k == '2d_to_1d_neg':
+                indices_out.append(v)
             elif k.endswith('_in'):
                 indices_in.append(v)
             elif k.endswith('_out'):
@@ -354,10 +384,11 @@ class WaterBalanceWidget(QDockWidget):
                 indices_in.append(v)
                 indices_out.append(v)
 
-            if k == '1d_2d_in' or k == '1d_2d_out':
-                label = '1d_2d_door_grens'
-            else:
+            try:
+                label = cls.BARCHART_XLABEL_MAPPING[k]
+            except KeyError:
                 label = k.rsplit('_in')[0].rsplit('_out')[0]
+
             if label not in xlabels:
                 xlabels.append(label)
         return indices_in, indices_out, xlabels
@@ -418,15 +449,17 @@ class WaterBalanceWidget(QDockWidget):
 
         plt.figure(1)  # TODO: what does this do?
 
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(
+            bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.2)
+
         plt.subplot(221)
         plt.axhline(color='black', lw=.5)
         plt.bar(x, end_balance_in, label='In')
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45)
-        # prevent clipping of tick-labels
-        plt.subplots_adjust(bottom=0.3, hspace=2)
         plt.title('2D')
-        plt.ylabel('volume (m3)')
+        plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
@@ -445,9 +478,8 @@ class WaterBalanceWidget(QDockWidget):
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45)
         # prevent clipping of tick-labels
-        plt.subplots_adjust(bottom=0.3, hspace=2)
         plt.title('1D')
-        plt.ylabel('volume (m3)')
+        plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
@@ -466,9 +498,8 @@ class WaterBalanceWidget(QDockWidget):
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45)
         # prevent clipping of tick-labels
-        plt.subplots_adjust(bottom=0.3, hspace=2)
         plt.title('2D groundwater')
-        plt.ylabel('volume (m3)')
+        plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
@@ -483,13 +514,12 @@ class WaterBalanceWidget(QDockWidget):
 
         plt.subplot(224)
         plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
+        plt.bar(x, end_balance_in, label='2D to 1D')
+        plt.bar(x, end_balance_out, label='1D to 2D')
         plt.xticks(x, xlabels, rotation=45)
         # prevent clipping of tick-labels
-        plt.subplots_adjust(bottom=0.3, hspace=2)
-        plt.title('1D-2D exchange (within polygon)')
-        plt.ylabel('volume (m3)')
+        plt.title('1D-2D exchange (inside polygon)')
+        plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
         plt.show()
@@ -626,7 +656,7 @@ class WaterBalanceWidget(QDockWidget):
 
         if self.agg_combo_box.currentText() == 'm3/s':
             self.plot_widget.setLabel("left", "Debiet", "m3/s")
-        elif self.agg_combo_box.currentText() == 'm3 aggregated':
+        elif self.agg_combo_box.currentText() == 'm3 cumulative':
             self.plot_widget.setLabel("left", "Cumulatieve debiet", "m3")
         else:
             self.plot_widget.setLabel("left", "-", "-")
@@ -804,7 +834,7 @@ class WaterBalanceWidget(QDockWidget):
                 # throw config error
                 log.warning('aggregation %s method unknown.', serie_setting['default_method'])
 
-            if aggregation_type == 'm3 aggregated':
+            if aggregation_type == 'm3 cumulative':
                 log.debug('aggregate')
                 diff = np.append([0], np.diff(ts))
 
