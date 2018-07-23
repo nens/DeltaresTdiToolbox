@@ -491,8 +491,11 @@ class WaterBalanceWidget(QDockWidget):
             '1d flow': ['1d'],
             '1d boundaries': ['1d_bound'],
             '1d-2d uitwisseling': ['1d_2d'],
-            '1d-2d flow door grens': ['1d_2d'],
-            'pompen': ['pump_or_whatever'],  # TODO: fix this magic string
+             # TODO: '1d_2d_intersected' and 'pump_or_whatever' are magic
+             # strings that we ad-hoc created in the prepare_and_visualize
+             # function. A better solution would be nicer...
+            '1d-2d flow door grens': ['1d_2d_intersected'],
+            'pompen': ['pump_or_whatever'],
             '2d groundwater flow': ['2d_groundwater'],
         }
         name_to_node_types = {
@@ -656,8 +659,13 @@ class WaterBalanceWidget(QDockWidget):
         line_id_to_type = {}
         for _type, id_list in link_ids.items():
             for i in id_list:
-                # we're not interested in in or out types
-                t = _type.rsplit('_out')[0].rsplit('_in')[0]
+                # we're not interested in in or out types, but for 1d_2d_in
+                # and 1d_2d_out we need to employ this hack because these
+                # types end in '_in'/'_out'
+                if _type == '1d_2d_in' or _type == '1d_2d_out':
+                    t = '1d_2d_intersected'
+                else:
+                    t = _type.rsplit('_out')[0].rsplit('_in')[0]
                 line_id_to_type[i] = t
         # pump_id_to_type = {}
         # for _, id_list in pump_ids.items():
