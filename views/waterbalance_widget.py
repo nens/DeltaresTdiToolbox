@@ -99,7 +99,8 @@ class WaterbalanceItemTable(QTableView):
                     try:
                         self.hover_exit(self._last_hovered_row)
                     except IndexError:
-                        log.warning("Hover row index %s out of range",
+                        log.warning(
+                            "Hover row index %s out of range",
                             self._last_hovered_row)
                         # self.hoverExitRow.emit(self._last_hovered_row)
                 # self.hoverEnterRow.emit(row)
@@ -353,7 +354,10 @@ class WaterBalanceWidget(QDockWidget):
                 indices_in.append(v)
                 indices_out.append(v)
 
-            label = k.rsplit('_in')[0].rsplit('_out')[0]
+            if k == '1d_2d_in' or k == '1d_2d_out':
+                label = '1d_2d_door_grens'
+            else:
+                label = k.rsplit('_in')[0].rsplit('_out')[0]
             if label not in xlabels:
                 xlabels.append(label)
         return indices_in, indices_out, xlabels
@@ -392,6 +396,11 @@ class WaterBalanceWidget(QDockWidget):
             x: y for (x, y, z) in self.INPUT_SERIES
             if z in ['2d'] and 'groundwater' in x
             or 'leak' in x
+        }
+
+        input_series_1d_2d = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['1d_2d']
         }
         # xlabels = ['rain', '2d', '1d', '2d bound', '1d bound']
         # indices_in = [14, 0, 2, 4, 6]
@@ -462,6 +471,27 @@ class WaterBalanceWidget(QDockWidget):
         plt.ylabel('volume (m3)')
         plt.legend()
 
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_1d_2d)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
+        plt.subplot(224)
+        plt.axhline(color='black', lw=.5)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
+        plt.xticks(x, xlabels, rotation=45)
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.3, hspace=2)
+        plt.title('1D-2D exchange (within polygon)')
+        plt.ylabel('volume (m3)')
+        plt.legend()
+
         plt.show()
 
     def hover_enter_map_visualization(self, name):
@@ -491,9 +521,10 @@ class WaterBalanceWidget(QDockWidget):
             '1d flow': ['1d'],
             '1d boundaries': ['1d_bound'],
             '1d-2d uitwisseling': ['1d_2d'],
-             # TODO: '1d_2d_intersected' and 'pump_or_whatever' are magic
-             # strings that we ad-hoc created in the prepare_and_visualize
-             # function. A better solution would be nicer...
+            # TODO: '1d_2d_intersected' and 'pump_or_whatever' are magic
+            # strings that we ad-hoc created in the
+            # prepare_and_visualize_selection function.
+            # A better solution would be nice...
             '1d-2d flow door grens': ['1d_2d_intersected'],
             'pompen': ['pump_or_whatever'],
             '2d groundwater flow': ['2d_groundwater'],

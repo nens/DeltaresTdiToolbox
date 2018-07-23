@@ -42,7 +42,9 @@ class WaterBalanceCalculation(object):
 
         returned value = (flow_lines, pump_selection)
         """
-        # todo: implement model_part
+        # TODO: implement model_part. One of the problems of not having
+        # this implemented is that the on hover map highlight selects all
+        # links, even when the 2D or 1D modelpart is selected in the combo box.
 
         log.info('polygon of wb area: %s', wb_polygon.exportToWkt())
 
@@ -581,7 +583,8 @@ class WaterBalanceTool:
         # initialize plugin directory
         self.plugin_dir = os.path.dirname(__file__)
 
-        self.icon_path = ':/plugins/zDeltaresTdiToolbox/media/weight-scale-deltares.png'
+        self.icon_path = \
+            ':/plugins/zDeltaresTdiToolbox/media/weight-scale-deltares.png'
         self.menu_text = u'Water Balance Tool'
 
         self.plugin_is_active = False
@@ -609,9 +612,10 @@ class WaterBalanceTool:
 
             if self.widget is None:
                 # Create the widget (after translation) and keep reference
-                self.widget = WaterBalanceWidget(iface=self.iface,
-                                                 ts_datasource=self.ts_datasource,
-                                                 wb_calc=WaterBalanceCalculation(self.ts_datasource))
+                self.widget = WaterBalanceWidget(
+                    iface=self.iface,
+                    ts_datasource=self.ts_datasource,
+                    wb_calc=WaterBalanceCalculation(self.ts_datasource))
 
             # connect to provide cleanup on closing of widget
             self.widget.closingWidget.connect(self.on_close_child_widget)
