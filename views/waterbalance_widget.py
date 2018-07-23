@@ -477,7 +477,6 @@ class WaterBalanceWidget(QDockWidget):
         plt.bar(x, end_balance_in, label='In')
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45, ha='right')
-        # prevent clipping of tick-labels
         plt.title('1D')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
@@ -497,7 +496,6 @@ class WaterBalanceWidget(QDockWidget):
         plt.bar(x, end_balance_in, label='In')
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45, ha='right')
-        # prevent clipping of tick-labels
         plt.title('2D groundwater')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
@@ -517,7 +515,6 @@ class WaterBalanceWidget(QDockWidget):
         plt.bar(x, end_balance_in, label='2D to 1D')
         plt.bar(x, end_balance_out, label='1D to 2D')
         plt.xticks(x, xlabels, rotation=45, ha='right')
-        # prevent clipping of tick-labels
         plt.title('1D-2D exchange (inside polygon)')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
