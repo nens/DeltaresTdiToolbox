@@ -1,6 +1,7 @@
 import copy
 import logging
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pyqtgraph as pg
 from PyQt4.QtCore import Qt, QSize, QEvent, QMetaObject
@@ -329,30 +330,22 @@ class WaterBalanceWidget(QDockWidget):
         # initially turn on tool
         self.select_polygon_button.toggle()
 
-        self._current_calc = None  # cache the results of calculation
+        self.__current_calc = None  # cache the results of calculation
 
-    def show_chart(self):
-        # TODO: we need cumulative aggregated results (np.cumsum)
-        import matplotlib.pyplot as plt
-        if not self._current_calc:
-            return
-        ts, ts_series = self._current_calc
-
-        input_series = {
-            x: y for (x, y, z) in self.INPUT_SERIES
-            if z in ['2d'] and 'groundwater' not in x
-            and 'leak' not in x and '1d_2d' not in x
-        }
-
+    @staticmethod
+    def _create_indices_and_labels(input_series):
         indices_in = []
         indices_out = []
-        # xlabels = ['rain', '2d', '1d', '2d bound', '1d bound']
         xlabels = []
         sorted_keys = sorted(input_series.keys())
         # for k, v in input_series.items():
         for k in sorted_keys:
             v = input_series[k]
-            if k.endswith('_in'):
+            # CAUTION: these two flow types only have in or out
+            if k == '1d_2d_in' or k == '1d_2d_out':
+                indices_in.append(v)
+                indices_out.append(v)
+            elif k.endswith('_in'):
                 indices_in.append(v)
             elif k.endswith('_out'):
                 indices_out.append(v)
@@ -363,12 +356,13 @@ class WaterBalanceWidget(QDockWidget):
             label = k.rsplit('_in')[0].rsplit('_out')[0]
             if label not in xlabels:
                 xlabels.append(label)
+        return indices_in, indices_out, xlabels
 
-        # indices_in = [14, 0, 2, 4, 6]
-        # indices_out = [14, 1, 3, 5, 7]
-        # import qtdb;qtdb.set_trace()
-        # TODO: use np.clip to determine in/out for dvol (for flows this
-        # shouldn't matter)
+    def _calc_in_out_balance(self, indices_in, indices_out, xlabels):
+        ts, ts_series = self._current_calc
+
+        # NOTE: we're using np.clip to determine in/out for dvol (for flows
+        # /discharges this shouldn't matter I THINK)
         ts_deltas = np.concatenate(([0], np.diff(ts)))
         end_balance_in_tmp = (
             ts_deltas * ts_series[:, indices_in].T).clip(min=0)
@@ -376,24 +370,98 @@ class WaterBalanceWidget(QDockWidget):
             ts_deltas * ts_series[:, indices_out].T).clip(max=0)
         end_balance_in = end_balance_in_tmp.sum(1)
         end_balance_out = end_balance_out_tmp.sum(1)
+        return end_balance_in, end_balance_out
 
-        N = len(xlabels)
-        x = np.arange(N)
+    def show_chart(self):
+        # TODO: we need cumulative aggregated results (np.cumsum)
+        if not self._current_calc:
+            return
 
+        input_series_2d = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['2d'] and 'groundwater' not in x
+            and 'leak' not in x
+        }
+
+        input_series_1d = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['1d']
+        }
+
+        input_series_2d_groundwater = {
+            x: y for (x, y, z) in self.INPUT_SERIES
+            if z in ['2d'] and 'groundwater' in x
+            or 'leak' in x
+        }
+        # xlabels = ['rain', '2d', '1d', '2d bound', '1d bound']
+        # indices_in = [14, 0, 2, 4, 6]
+        # indices_out = [14, 1, 3, 5, 7]
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_2d)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels)
+        x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
                 xlabels, indices_in)
         )
 
+        plt.figure(1)  # TODO: what does this do?
+
+        plt.subplot(221)
         plt.axhline(color='black', lw=.5)
         plt.bar(x, end_balance_in, label='In')
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45)
         # prevent clipping of tick-labels
-        plt.subplots_adjust(bottom=0.3)
+        plt.subplots_adjust(bottom=0.3, hspace=2)
         plt.title('2D')
         plt.ylabel('volume (m3)')
         plt.legend()
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_1d)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
+        plt.subplot(222)
+        plt.axhline(color='black', lw=.5)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
+        plt.xticks(x, xlabels, rotation=45)
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.3, hspace=2)
+        plt.title('1D')
+        plt.ylabel('volume (m3)')
+        plt.legend()
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_2d_groundwater)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
+        plt.subplot(223)
+        plt.axhline(color='black', lw=.5)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
+        plt.xticks(x, xlabels, rotation=45)
+        # prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.3, hspace=2)
+        plt.title('2D groundwater')
+        plt.ylabel('volume (m3)')
+        plt.legend()
+
         plt.show()
 
     def hover_enter_map_visualization(self, name):
@@ -536,6 +604,19 @@ class WaterBalanceWidget(QDockWidget):
         text_lower.setPos(0, 0)
         self.plot_widget.addItem(text_upper)
         self.plot_widget.addItem(text_lower)
+
+    @property
+    def _current_calc(self):
+        return self.__current_calc
+
+    @_current_calc.setter
+    def _current_calc(self, ts_total_time_tuple):
+        # NOTE: flips the sign on dvol to make things more intuitive for
+        # barcharts
+        ts, ts_series = ts_total_time_tuple
+        ts_series = ts_series.copy()
+        ts_series[:, [18, 19, 25]] = -1 * ts_series[:, [18, 19, 25]]
+        self.__current_calc = (ts, ts_series)
 
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
         poly_points = self.polygon_tool.points
