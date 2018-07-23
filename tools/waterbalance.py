@@ -521,7 +521,8 @@ class WaterBalanceCalculation(object):
                     td_vol_gw = ma.masked_array(
                         vol, mask=mask_2d_groundwater_nodes).sum()
 
-                    # todo: remove in case unit is m3 instead of m3/s
+                    # NOTE the -1, this is for visualizing the dVOLUME graph
+                    # as a negative for balancing against the positive fluxes
                     dt = t - t_pref
                     total_time[ts_idx, 18] = -1 * (td_vol - td_vol_pref) / dt
                     total_time[ts_idx, 19] = -1 * (od_vol - od_vol_pref) / dt
