@@ -107,6 +107,12 @@ serie_settings = [
             'order': 10.5,
             'def_color': '221,160,221',
             'series': ['leak'],
+        }, {
+            'name': '1d inloop',
+            'default_method': 'net',
+            'order': 7.1,
+            'def_color': '0,130,136',
+            'series': ['inflow'],
         }]
     }, {
         'name': 'hoofdstromen',
@@ -129,7 +135,7 @@ serie_settings = [
             'default_method': 'net',
             'order': 3,
             'def_color': '0,150,136',
-            'series': ['rain', 'lat_1d', 'lat_2d'],  # TODO: Add leakage?
+            'series': ['rain', 'lat_1d', 'lat_2d', 'inflow'],  # TODO: Add leakage?
         }, {
             'name': 'infiltratie',
             'default_method': 'net',

@@ -438,6 +438,7 @@ class WaterBalanceCalculation(object):
             ('q_lat', np_1d_node, 17, 1),
             # NOTE: can be a source or sink depending on sign
             ('leak', np_2d_groundwater_node, 26, 1),
+            ('rain', np_1d_node, 27, 1),
         ]:
 
             if node.size > 0:
