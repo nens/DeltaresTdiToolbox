@@ -474,6 +474,8 @@ class WaterBalanceWidget(QDockWidget):
         plt.subplots_adjust(
             bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.4)
 
+        # this axes object will be shared by the other subplots to give them
+        # the same y alignment
         ax1 = plt.subplot(131)
         plt.axhline(color='black', lw=.5)
         plt.bar(x, end_balance_in, label='In')
