@@ -397,8 +397,19 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels.append(label)
         return indices_in, indices_out, xlabels
 
-    def _calc_in_out_balance(self, indices_in, indices_out, xlabels):
+    def _calc_in_out_balance(
+            self, indices_in, indices_out, xlabels, t1=0, t2=None):
         ts, ts_series = self._current_calc
+
+        # get indices
+        idx_x1 = np.searchsorted(ts, t1)
+        if not t2:
+            idx_x2 = len(ts)
+        else:
+            idx_x2 = np.searchsorted(ts, t2)
+        ts_indices_sliced = np.arange(idx_x1, idx_x2)
+
+        # ts_sliced = ts[ts_indices_sliced]
 
         # NOTE: we're using np.clip to determine in/out for dvol (for flows
         # /discharges this shouldn't matter I THINK)
@@ -407,8 +418,8 @@ class WaterBalanceWidget(QDockWidget):
             ts_deltas * ts_series[:, indices_in].T).clip(min=0)
         end_balance_out_tmp = (
             ts_deltas * ts_series[:, indices_out].T).clip(max=0)
-        end_balance_in = end_balance_in_tmp.sum(1)
-        end_balance_out = end_balance_out_tmp.sum(1)
+        end_balance_in = end_balance_in_tmp[:, ts_indices_sliced].sum(1)
+        end_balance_out = end_balance_out_tmp[:, ts_indices_sliced].sum(1)
         return end_balance_in, end_balance_out
 
     def show_chart(self):
@@ -442,10 +453,15 @@ class WaterBalanceWidget(QDockWidget):
         # indices_in = [14, 0, 2, 4, 6]
         # indices_out = [14, 1, 3, 5, 7]
 
+        # get timeseries x range in plot widget
+        viewbox_state = self.plot_widget.getPlotItem().getViewBox().getState()
+        view_range = viewbox_state['viewRange']
+        t1, t2 = view_range[0]
+
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_2d)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels)
+            indices_in, indices_out, xlabels, t1, t2)
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
@@ -453,6 +469,8 @@ class WaterBalanceWidget(QDockWidget):
         )
 
         plt.figure(1)  # TODO: what does this do?
+
+        plt.suptitle("Water balance from t=%.2f to t=%.2f" % (t1, t2))
 
         # prevent clipping of tick-labels, among others
         plt.subplots_adjust(
@@ -470,7 +488,7 @@ class WaterBalanceWidget(QDockWidget):
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_1d)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels)
+            indices_in, indices_out, xlabels, t1, t2)
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
@@ -489,7 +507,7 @@ class WaterBalanceWidget(QDockWidget):
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_2d_groundwater)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels)
+            indices_in, indices_out, xlabels, t1, t2)
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
@@ -504,25 +522,6 @@ class WaterBalanceWidget(QDockWidget):
         plt.title('2D groundwater domain')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
-
-        # indices_in, indices_out, xlabels = self._create_indices_and_labels(
-        #     input_series_1d_2d)
-        # end_balance_in, end_balance_out = self._calc_in_out_balance(
-        #     indices_in, indices_out, xlabels)
-        # x = np.arange(len(xlabels))
-        # assert x.shape[0] == end_balance_in.shape[0], (
-        #     "xlabels=%s, indices_in=%s" % (
-        #         xlabels, indices_in)
-        # )
-
-        # plt.subplot(224)
-        # plt.axhline(color='black', lw=.5)
-        # plt.bar(x, end_balance_in, label='2D to 1D')
-        # plt.bar(x, end_balance_out, label='1D to 2D')
-        # plt.xticks(x, xlabels, rotation=45, ha='right')
-        # plt.title('1D-2D exchange (inside polygon)')
-        # plt.ylabel(r'volume ($m^3$)')
-        # plt.legend()
 
         plt.show()
 
