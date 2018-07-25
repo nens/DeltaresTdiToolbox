@@ -409,8 +409,6 @@ class WaterBalanceWidget(QDockWidget):
             idx_x2 = np.searchsorted(ts, t2)
         ts_indices_sliced = np.arange(idx_x1, idx_x2)
 
-        # ts_sliced = ts[ts_indices_sliced]
-
         # NOTE: we're using np.clip to determine in/out for dvol (for flows
         # /discharges this shouldn't matter I THINK)
         ts_deltas = np.concatenate(([0], np.diff(ts)))
@@ -476,31 +474,12 @@ class WaterBalanceWidget(QDockWidget):
         plt.subplots_adjust(
             bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.4)
 
-        plt.subplot(131)
+        ax1 = plt.subplot(131)
         plt.axhline(color='black', lw=.5)
         plt.bar(x, end_balance_in, label='In')
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('2D surface water domain')
-        plt.ylabel(r'volume ($m^3$)')
-        plt.legend()
-
-        indices_in, indices_out, xlabels = self._create_indices_and_labels(
-            input_series_1d)
-        end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels, t1, t2)
-        x = np.arange(len(xlabels))
-        assert x.shape[0] == end_balance_in.shape[0], (
-            "xlabels=%s, indices_in=%s" % (
-                xlabels, indices_in)
-        )
-
-        plt.subplot(132)
-        plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
-        plt.xticks(x, xlabels, rotation=45, ha='right')
-        plt.title('1D network domain')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
@@ -514,12 +493,31 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels, indices_in)
         )
 
-        plt.subplot(133)
+        plt.subplot(132, sharey=ax1)
         plt.axhline(color='black', lw=.5)
         plt.bar(x, end_balance_in, label='In')
         plt.bar(x, end_balance_out, label='Out')
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('2D groundwater domain')
+        plt.ylabel(r'volume ($m^3$)')
+        plt.legend()
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_1d)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, xlabels, t1, t2)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
+
+        plt.subplot(133, sharey=ax1)
+        plt.axhline(color='black', lw=.5)
+        plt.bar(x, end_balance_in, label='In')
+        plt.bar(x, end_balance_out, label='Out')
+        plt.xticks(x, xlabels, rotation=45, ha='right')
+        plt.title('1D network domain')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
