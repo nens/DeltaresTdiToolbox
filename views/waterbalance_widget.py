@@ -278,8 +278,8 @@ class WaterBalanceWidget(QDockWidget):
     # maps INPUT_SERIES var names to x axis labels
     # NOTE: _in/_out pairings MUST map to the same label
     BARCHART_XLABEL_MAPPING = {
-        '1d_2d_in': '1D-2D (crossing boundary)',
-        '1d_2d_out': '1D-2D (crossing boundary)',
+        '1d_2d_in': '1D-2D flow',
+        '1d_2d_out': '1D-2D flow',
         'd_2d_vol': '2D storage',
         'd_1d_vol': '1D storage',
         'd_2d_groundwater_vol': '2D groundwater storage',
@@ -542,7 +542,7 @@ class WaterBalanceWidget(QDockWidget):
         ]
         # TODO 1: generate this dict
 
-        # TODO 2: 1d-2d door grens isn't completely correct for 2d
+        # TODO 2: 1d-2d flow isn't completely correct for 2d
         # and 1d flow because those only only take either 1d_2d_in or
         # 1d_2d_out and we're using the aggregated 1d_2d_intersected
 
@@ -561,7 +561,7 @@ class WaterBalanceWidget(QDockWidget):
             # strings that we ad-hoc created in the
             # prepare_and_visualize_selection function.
             # A better solution would be nice...
-            '1d-2d flow door grens': ['1d_2d_intersected'],
+            '1d-2d flow': ['1d_2d_intersected'],
             'pompen': ['pump_or_whatever'],
             '2d groundwater flow': ['2d_groundwater'],
         }
@@ -578,7 +578,7 @@ class WaterBalanceWidget(QDockWidget):
             'volumeverandering 1d': ['1d'],
             'volumeverandering 2d grondwater': ['2d_groundwater'],
             'neerslag': ['2d'],
-            '1d inloop': ['1d'],
+            'inflow 1d from rain': ['1d'],
             'lateraal 1d': ['1d'],
             'lateraal 2d': ['2d'],
             'leakage': ['2d'],

@@ -36,7 +36,7 @@ serie_settings = [
             'def_color': '205,220,5',
             'series': ['2d_to_1d_pos', '2d_to_1d_neg'],
         },  {
-            'name': '1d-2d flow door grens',
+            'name': '1d-2d flow',
             'default_method': 'gross',
             'order': 5,
             'def_color': '205,220,55',
@@ -108,7 +108,7 @@ serie_settings = [
             'def_color': '221,160,221',
             'series': ['leak'],
         }, {
-            'name': '1d inloop',
+            'name': 'inflow 1d from rain',
             'default_method': 'net',
             'order': 7.1,
             'def_color': '0,130,136',
