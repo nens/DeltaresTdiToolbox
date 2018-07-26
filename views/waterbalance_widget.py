@@ -311,8 +311,8 @@ class WaterBalanceWidget(QDockWidget):
         '2d_to_1d_neg': '1D-2D exchange',
         '2d_to_1d_pos': '1D-2D exchange',
         'inflow': 'inflow on 1D from rain',
-        '2d_vertical_infiltration_pos': '2d vertical flow exchange',
-        '2d_vertical_infiltration_neg': '2d vertical flow exchange',
+        '2d_vertical_infiltration_pos': '2D vertical flow exchange',
+        '2d_vertical_infiltration_neg': '2D vertical flow exchange',
     }
 
     def __init__(
@@ -510,8 +510,14 @@ class WaterBalanceWidget(QDockWidget):
 
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_2d_groundwater)
+
+        # MORE custom hackery to flip bar plot in groundwater domain
+        vert_idx = xlabels.index('2D vertical flow exchange')
         end_balance_in, end_balance_out = self._calc_in_out_balance(
             indices_in, indices_out, t1, t2)
+        end_balance_in[vert_idx], end_balance_out[vert_idx] = \
+            -1*end_balance_out[vert_idx], -1*end_balance_in[vert_idx]
+        # END of custom hacks
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
