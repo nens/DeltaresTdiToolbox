@@ -213,7 +213,8 @@ class WaterBalanceCalculation(object):
         return nodes
 
     def get_aggregated_flows(
-            self, link_ids, pump_ids, node_ids, model_part, source_nc):
+            self, link_ids, pump_ids, node_ids, model_part, source_nc,
+            reverse_dvol_sign=True):
         """
         Returns a tuple (ts, total_time) defined as:
 
@@ -320,9 +321,11 @@ class WaterBalanceCalculation(object):
                 # vol = ds.get_values_by_timestep_nr('q', ts_idx, np_link['id']) * np_link['dir']  # * dt
 
                 if source_nc == 'aggregation':
-                    flow_pos = ds.get_values_by_timestep_nr('q_cum_positive', ts_idx, np_link['id']) * np_link[
+                    flow_pos = ds.get_values_by_timestep_nr(
+                        'q_cum_positive', ts_idx, np_link['id']) * np_link[
                         'dir']
-                    flow_neg = ds.get_values_by_timestep_nr('q_cum_negative', ts_idx, np_link['id']) * np_link[
+                    flow_neg = ds.get_values_by_timestep_nr(
+                        'q_cum_negative', ts_idx, np_link['id']) * np_link[
                         'dir'] * -1
 
                     in_sum = flow_pos - pos_pref
@@ -490,6 +493,14 @@ class WaterBalanceCalculation(object):
                     total_time[ts_idx] = total_time[ts_idx] / (t - t_pref)
                     t_pref = t
 
+        # NOTE: the -1 is for visualizing the dVOLUME graph as a negative
+        # for balancing against the positive fluxes (which makes for nice
+        # pictures)
+        if reverse_dvol_sign:
+            dvol_sign = -1
+        else:
+            dvol_sign = 1
+
         if np_node.size > 0:
             # delta volume
             t_pref = 0
@@ -524,13 +535,13 @@ class WaterBalanceCalculation(object):
                     td_vol_gw = ma.masked_array(
                         vol, mask=mask_2d_groundwater_nodes).sum()
 
-                    # NOTE the -1, this is for visualizing the dVOLUME graph
-                    # as a negative for balancing against the positive fluxes
                     dt = t - t_pref
-                    total_time[ts_idx, 18] = -1 * (td_vol - td_vol_pref) / dt
-                    total_time[ts_idx, 19] = -1 * (od_vol - od_vol_pref) / dt
+                    total_time[ts_idx, 18] = \
+                        dvol_sign * (td_vol - td_vol_pref) / dt
+                    total_time[ts_idx, 19] = \
+                        dvol_sign * (od_vol - od_vol_pref) / dt
                     total_time[ts_idx, 25] = \
-                        -1 * (td_vol_gw - td_vol_pref_gw) / dt
+                        dvol_sign * (td_vol_gw - td_vol_pref_gw) / dt
 
                     td_vol_pref = td_vol
                     od_vol_pref = od_vol
@@ -539,30 +550,31 @@ class WaterBalanceCalculation(object):
 
         total_time = np.nan_to_num(total_time)
 
-        # NOTE: the indices below should match the model_part indices in
-        # ``WaterBalanceWidget.make_graph_series``.
+        if reverse_dvol_sign:
+            # NOTE: the indices below should match the model_part indices in
+            # ``WaterBalanceWidget.make_graph_series``.
 
-        # calculate error 2d
-        idx_2d = tuple(
-            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
-            ['2d', '1d_2d'])
-        total_time[:, 20] = -1 * total_time[:, idx_2d].sum(axis=1)
+            # calculate error 2d
+            idx_2d = tuple(
+                y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+                ['2d', '1d_2d'])
+            total_time[:, 20] = -1 * total_time[:, idx_2d].sum(axis=1)
 
-        # calculate error 1d
-        idx_1d = tuple(
-            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
-            ['1d'])
-        idx_1d_2d = tuple(
-            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
-            ['1d_2d'])
-        total_time[:, 21] = -1 * total_time[
-            :, idx_1d].sum(axis=1) + total_time[:, idx_1d_2d].sum(axis=1)
+            # calculate error 1d
+            idx_1d = tuple(
+                y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+                ['1d'])
+            idx_1d_2d = tuple(
+                y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+                ['1d_2d'])
+            total_time[:, 21] = -1 * total_time[
+                :, idx_1d].sum(axis=1) + total_time[:, idx_1d_2d].sum(axis=1)
 
-        # calculate error 1d-2d
-        idx_1d_and_2d = tuple(
-            y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
-            ['2d', '1d'])
-        total_time[:, 22] = -1 * total_time[:, idx_1d_and_2d].sum(axis=1)
+            # calculate error 1d-2d
+            idx_1d_and_2d = tuple(
+                y for (x, y, z) in WaterBalanceWidget.INPUT_SERIES if z in
+                ['2d', '1d'])
+            total_time[:, 22] = -1 * total_time[:, idx_1d_and_2d].sum(axis=1)
 
         return ts, total_time
 
