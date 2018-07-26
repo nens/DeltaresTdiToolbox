@@ -417,7 +417,7 @@ class WaterBalanceWidget(QDockWidget):
         return indices_in, indices_out, xlabels
 
     def _calc_in_out_balance(
-            self, indices_in, indices_out, xlabels, t1=0, t2=None):
+            self, indices_in, indices_out, t1=0, t2=None):
         ts, ts_series = self._current_calc
 
         # get indices
@@ -477,7 +477,7 @@ class WaterBalanceWidget(QDockWidget):
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_2d)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels, t1, t2)
+            indices_in, indices_out, t1, t2)
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
