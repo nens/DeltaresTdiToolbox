@@ -282,6 +282,8 @@ class WaterBalanceWidget(QDockWidget):
         ('d_2d_groundwater_vol', 25, '2d'),
         ('leak', 26, '2d'),
         ('inflow', 27, '1d'),
+        ('2d_vertical_infiltration_pos', 28, '2d_vert'),
+        ('2d_vertical_infiltration_neg', 29, '2d_vert'),
     ]
 
     # maps INPUT_SERIES var names to x axis labels
@@ -309,6 +311,8 @@ class WaterBalanceWidget(QDockWidget):
         '2d_to_1d_neg': '1D-2D exchange',
         '2d_to_1d_pos': '1D-2D exchange',
         'inflow': 'inflow on 1D from rain',
+        '2d_vertical_infiltration_pos': '2d vertical infiltration',
+        '2d_vertical_infiltration_neg': '2d vertical infiltration',
     }
 
     def __init__(
@@ -389,6 +393,12 @@ class WaterBalanceWidget(QDockWidget):
                 indices_in.append(v)
             elif k == '2d_to_1d_neg':
                 indices_out.append(v)
+            # NOTE: for the argument why pos is out and neg is in, see the
+            # comment in ``WaterBalanceCalculation.get_aggregated_flows``
+            elif k == '2d_vertical_infiltration_pos':
+                indices_out.append(v)
+            elif k == '2d_vertical_infiltration_neg':
+                indices_in.append(v)
             elif k.endswith('_in'):
                 indices_in.append(v)
             elif k.endswith('_out'):
@@ -435,7 +445,7 @@ class WaterBalanceWidget(QDockWidget):
 
         input_series_2d = {
             x: y for (x, y, z) in self.INPUT_SERIES
-            if z in ['2d', '1d_2d'] and 'groundwater' not in x
+            if z in ['2d', '1d_2d', '2d_vert'] and 'groundwater' not in x
             and 'leak' not in x
         }
 
@@ -447,7 +457,7 @@ class WaterBalanceWidget(QDockWidget):
         input_series_2d_groundwater = {
             x: y for (x, y, z) in self.INPUT_SERIES
             if z in ['2d'] and 'groundwater' in x
-            or 'leak' in x
+            or 'leak' in x or z in ['2d_vert']
         }
 
         # input_series_1d_2d = {

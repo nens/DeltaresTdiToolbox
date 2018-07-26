@@ -62,6 +62,7 @@ class WaterBalanceCalculation(object):
             '1d_2d': [],  # direction is always from 2d to 1d
             '2d_groundwater_in': [],
             '2d_groundwater_out': [],
+            '2d_vertical_infiltration': [],
             # TODO: add 1d_2d_groundwater?
         }
         pump_selection = {
@@ -118,6 +119,9 @@ class WaterBalanceCalculation(object):
             elif line['type'] == '1d_2d' and line.geometry().within(
                     wb_polygon):
                 flow_lines['1d_2d'].append(line['id'])
+            elif line['type'] == '2d_vertical_infiltration' and line.geometry(
+                    ).within(wb_polygon):
+                flow_lines['2d_vertical_infiltration'].append(line['id'])
 
         # find boundaries in polygon
         request_filter = QgsFeatureRequest().setFilterRect(
@@ -231,10 +235,12 @@ class WaterBalanceCalculation(object):
         TYPE_2D_BOUND_IN = '2d_bound_in'
         TYPE_1D_2D = '1d_2d'
         TYPE_1D_2D_IN = '1d_2d_in'
+        TYPE_2D_VERTICAL_INFILTRATION = '2d_vertical_infiltration'
 
         ALL_TYPES = [
             TYPE_1D, TYPE_2D, TYPE_2D_GROUNDWATER, TYPE_1D_BOUND_IN,
             TYPE_2D_BOUND_IN, TYPE_1D_2D, TYPE_1D_2D_IN,
+            TYPE_2D_VERTICAL_INFILTRATION,
         ]
         NTYPE_MAXLEN = 25
         assert max(map(len, ALL_TYPES)) <= NTYPE_MAXLEN, \
@@ -280,6 +286,9 @@ class WaterBalanceCalculation(object):
         for idx in link_ids['1d_2d']:
             tlink.append((idx, TYPE_1D_2D, 1))
 
+        for idx in link_ids['2d_vertical_infiltration']:
+            tlink.append((idx, TYPE_2D_VERTICAL_INFILTRATION, 1))
+
         np_link = np.array(
             tlink, dtype=[('id', int), ('ntype', NTYPE_DTYPE), ('dir', int)])
         # sort for faster reading of netcdf
@@ -293,6 +302,8 @@ class WaterBalanceCalculation(object):
         mask_1d_2d_in_out = np_link['ntype'] != TYPE_1D_2D_IN
         mask_1d_2d = np_link['ntype'] != TYPE_1D_2D
         mask_2d_groundwater = np_link['ntype'] != TYPE_2D_GROUNDWATER
+        mask_2d_vertical_infiltration = np_link['ntype'] != \
+            TYPE_2D_VERTICAL_INFILTRATION
 
         ds = self.ts_datasource.rows[0].datasource()
 
@@ -369,6 +380,16 @@ class WaterBalanceCalculation(object):
                     ma.masked_array(in_sum, mask=mask_2d_groundwater).sum()
                 total_time[ts_idx, 24] = \
                     ma.masked_array(out_sum, mask=mask_2d_groundwater).sum()
+
+                # NOTE: positive vertical infiltration is from surface to
+                # groundwater node. We make this negative because it's
+                # 'sink-like', and to make it in line with the
+                # infiltration_rate_simple which also has a -1 multiplication
+                # factor.
+                total_time[ts_idx, 28] = -1 * ma.masked_array(
+                    in_sum, mask=mask_2d_vertical_infiltration).sum()
+                total_time[ts_idx, 29] = -1 * ma.masked_array(
+                    out_sum, mask=mask_2d_vertical_infiltration).sum()
 
         # PUMPS
         #######
