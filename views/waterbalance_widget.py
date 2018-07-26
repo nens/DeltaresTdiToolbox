@@ -47,6 +47,15 @@ def _get_feature_iterator(layer, request_filter):
     else:
         return []
 
+
+def _dvol_cmp_func(a, b):
+    """Comparator for sort/sorted to make dvol last."""
+    if a in ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol']:
+        return 1
+    elif b in ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol']:
+        return -1
+    return cmp(a, b)
+
 #######################
 
 
@@ -367,8 +376,8 @@ class WaterBalanceWidget(QDockWidget):
         indices_in = []
         indices_out = []
         xlabels = []
-        sorted_keys = sorted(input_series.keys())
-        # for k, v in input_series.items():
+
+        sorted_keys = sorted(input_series.keys(), cmp=_dvol_cmp_func)
         for k in sorted_keys:
             v = input_series[k]
             # CAUTION: these two flow types only have in or out, i.e.,
