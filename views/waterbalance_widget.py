@@ -466,6 +466,7 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels, indices_in)
         )
 
+        plt.close()
         plt.figure(1)  # TODO: what does this do?
 
         plt.suptitle("Water balance from t=%.2f to t=%.2f" % (t1, t2))
