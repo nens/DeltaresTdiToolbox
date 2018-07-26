@@ -311,8 +311,8 @@ class WaterBalanceWidget(QDockWidget):
         '2d_to_1d_neg': '1D-2D exchange',
         '2d_to_1d_pos': '1D-2D exchange',
         'inflow': 'inflow on 1D from rain',
-        '2d_vertical_infiltration_pos': '2d vertical infiltration',
-        '2d_vertical_infiltration_neg': '2d vertical infiltration',
+        '2d_vertical_infiltration_pos': '2d vertical flow exchange',
+        '2d_vertical_infiltration_neg': '2d vertical flow exchange',
     }
 
     def __init__(
