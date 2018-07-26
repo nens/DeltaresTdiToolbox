@@ -47,6 +47,15 @@ def _get_feature_iterator(layer, request_filter):
     else:
         return []
 
+
+def _dvol_cmp_func(a, b):
+    """Comparator for sort/sorted to make dvol last."""
+    if a in ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol']:
+        return 1
+    elif b in ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol']:
+        return -1
+    return cmp(a, b)
+
 #######################
 
 
@@ -338,7 +347,7 @@ class WaterBalanceWidget(QDockWidget):
 
         self.agg_combo_box.insertItems(
             0,
-            ['m3/s', 'm3 cumulative'])
+            ['m3/s natural', 'm3/s', 'm3 cumulative'])
 
         # add listeners
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
@@ -367,8 +376,8 @@ class WaterBalanceWidget(QDockWidget):
         indices_in = []
         indices_out = []
         xlabels = []
-        sorted_keys = sorted(input_series.keys())
-        # for k, v in input_series.items():
+
+        sorted_keys = sorted(input_series.keys(), cmp=_dvol_cmp_func)
         for k in sorted_keys:
             v = input_series[k]
             # CAUTION: these two flow types only have in or out, i.e.,
@@ -421,7 +430,6 @@ class WaterBalanceWidget(QDockWidget):
         return end_balance_in, end_balance_out
 
     def show_chart(self):
-        # TODO: we need cumulative aggregated results (np.cumsum)
         if not self._current_calc:
             return
 
@@ -466,6 +474,7 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels, indices_in)
         )
 
+        plt.close()
         plt.figure(1)  # TODO: what does this do?
 
         plt.suptitle("Water balance from t=%.2f to t=%.2f" % (t1, t2))
@@ -474,12 +483,17 @@ class WaterBalanceWidget(QDockWidget):
         plt.subplots_adjust(
             bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.4)
 
+        pattern = '//'
+
         # this axes object will be shared by the other subplots to give them
         # the same y alignment
         ax1 = plt.subplot(131)
         plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(x, end_balance_in, label='In')
+        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in[-1].set_hatch(pattern)
+        bar_out[-1].set_hatch(pattern)
+        # bar_in[-1].set_color('gray')
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('2D surface water domain')
         plt.ylabel(r'volume ($m^3$)')
@@ -497,8 +511,10 @@ class WaterBalanceWidget(QDockWidget):
 
         plt.subplot(132, sharey=ax1)
         plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(x, end_balance_in, label='In')
+        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in[-1].set_hatch(pattern)
+        bar_out[-1].set_hatch(pattern)
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('2D groundwater domain')
         plt.ylabel(r'volume ($m^3$)')
@@ -516,8 +532,10 @@ class WaterBalanceWidget(QDockWidget):
 
         plt.subplot(133, sharey=ax1)
         plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(x, end_balance_in, label='In')
+        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in[-1].set_hatch(pattern)
+        bar_out[-1].set_hatch(pattern)
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('1D network domain')
         plt.ylabel(r'volume ($m^3$)')
@@ -684,6 +702,8 @@ class WaterBalanceWidget(QDockWidget):
             self.plot_widget.setLabel("left", "Debiet", "m3/s")
         elif self.agg_combo_box.currentText() == 'm3 cumulative':
             self.plot_widget.setLabel("left", "Cumulatieve debiet", "m3")
+        elif self.agg_combo_box.currentText() == 'm3/s natural':
+            self.plot_widget.setLabel("left", "Debiet", "m3/s")
         else:
             self.plot_widget.setLabel("left", "-", "-")
 
@@ -706,7 +726,8 @@ class WaterBalanceWidget(QDockWidget):
         ts, ts_series = ts_total_time_tuple
         ts_series = ts_series.copy()
         # indices for dvol of 2d, 1d, and groundwater
-        ts_series[:, [18, 19, 25]] = -1 * ts_series[:, [18, 19, 25]]
+        if self.reverse_dvol_sign:
+            ts_series[:, [18, 19, 25]] = -1 * ts_series[:, [18, 19, 25]]
         self.__current_calc = (ts, ts_series)
 
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
@@ -723,8 +744,14 @@ class WaterBalanceWidget(QDockWidget):
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
 
+        if aggregation_type == 'm3/s natural':
+            self.reverse_dvol_sign = False
+        else:
+            self.reverse_dvol_sign = True
+
         ts, total_time = self.calc.get_aggregated_flows(
-            link_ids, pump_ids, node_ids, model_part, source_nc)
+            link_ids, pump_ids, node_ids, model_part, source_nc,
+            reverse_dvol_sign=self.reverse_dvol_sign)
 
         # cache data for barchart
         self._current_calc = (ts, total_time)
