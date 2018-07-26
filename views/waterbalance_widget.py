@@ -483,12 +483,17 @@ class WaterBalanceWidget(QDockWidget):
         plt.subplots_adjust(
             bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.4)
 
+        pattern = '//'
+
         # this axes object will be shared by the other subplots to give them
         # the same y alignment
         ax1 = plt.subplot(131)
         plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(x, end_balance_in, label='In')
+        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in[-1].set_hatch(pattern)
+        bar_out[-1].set_hatch(pattern)
+        # bar_in[-1].set_color('gray')
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('2D surface water domain')
         plt.ylabel(r'volume ($m^3$)')
@@ -506,8 +511,10 @@ class WaterBalanceWidget(QDockWidget):
 
         plt.subplot(132, sharey=ax1)
         plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(x, end_balance_in, label='In')
+        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in[-1].set_hatch(pattern)
+        bar_out[-1].set_hatch(pattern)
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('2D groundwater domain')
         plt.ylabel(r'volume ($m^3$)')
@@ -525,8 +532,10 @@ class WaterBalanceWidget(QDockWidget):
 
         plt.subplot(133, sharey=ax1)
         plt.axhline(color='black', lw=.5)
-        plt.bar(x, end_balance_in, label='In')
-        plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(x, end_balance_in, label='In')
+        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in[-1].set_hatch(pattern)
+        bar_out[-1].set_hatch(pattern)
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('1D network domain')
         plt.ylabel(r'volume ($m^3$)')
