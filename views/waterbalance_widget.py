@@ -351,7 +351,8 @@ class WaterBalanceWidget(QDockWidget):
 
         self.agg_combo_box.insertItems(
             0,
-            ['m3/s natural', 'm3/s', 'm3 cumulative'])
+            ['m3/s natural', 'm3 cumulative natural', 'm3/s',
+             'm3 cumulative'])
 
         # add listeners
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
@@ -760,6 +761,8 @@ class WaterBalanceWidget(QDockWidget):
             self.plot_widget.setLabel("left", "Cumulatieve debiet", "m3")
         elif self.agg_combo_box.currentText() == 'm3/s natural':
             self.plot_widget.setLabel("left", "Debiet", "m3/s")
+        elif self.agg_combo_box.currentText() == 'm3 cumulative natural':
+            self.plot_widget.setLabel("left", "Cumulatieve debiet", "m3")
         else:
             self.plot_widget.setLabel("left", "-", "-")
 
@@ -800,7 +803,8 @@ class WaterBalanceWidget(QDockWidget):
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
 
-        if aggregation_type == 'm3/s natural':
+        if aggregation_type == 'm3/s natural' or \
+                aggregation_type == 'm3 cumulative natural':
             self.reverse_dvol_sign = False
         else:
             self.reverse_dvol_sign = True
@@ -947,7 +951,8 @@ class WaterBalanceWidget(QDockWidget):
                 # throw config error
                 log.warning('aggregation %s method unknown.', serie_setting['default_method'])
 
-            if aggregation_type == 'm3 cumulative':
+            if aggregation_type == 'm3 cumulative' or \
+                    aggregation_type == 'm3 cumulative natural':
                 log.debug('aggregate')
                 diff = np.append([0], np.diff(ts))
 
