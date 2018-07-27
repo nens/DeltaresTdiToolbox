@@ -803,11 +803,7 @@ class WaterBalanceWidget(QDockWidget):
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
 
-        if aggregation_type == 'm3/s natural' or \
-                aggregation_type == 'm3 cumulative natural':
-            self.reverse_dvol_sign = False
-        else:
-            self.reverse_dvol_sign = True
+        self.reverse_dvol_sign = aggregation_type in ['m3/s', 'm3 cumulative']
 
         ts, total_time = self.calc.get_aggregated_flows(
             link_ids, pump_ids, node_ids, model_part, source_nc,
