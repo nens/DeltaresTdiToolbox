@@ -291,9 +291,9 @@ class WaterBalanceWidget(QDockWidget):
     BARCHART_XLABEL_MAPPING = {
         '1d_2d_in': '1D-2D flow',
         '1d_2d_out': '1D-2D flow',
-        'd_2d_vol': '2D storage',
-        'd_1d_vol': '1D storage',
-        'd_2d_groundwater_vol': '2D groundwater storage',
+        'd_2d_vol': 'net 2D storage',
+        'd_1d_vol': 'net 1D storage',
+        'd_2d_groundwater_vol': 'net 2D groundwater storage',
         'leak': 'leakage',
         'infiltration_rate_simple': 'infiltration',
         '2d_in': '2D flow',
@@ -416,6 +416,21 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels.append(label)
         return indices_in, indices_out, xlabels
 
+    @staticmethod
+    def _fix_net_storage(end_balance_in, end_balance_out):
+        """hack to make net storage, employs side-effects."""
+        # More hacks: the 'storage' bar needs to be the net value, i.e.:
+        # we need to plot IN-OUT. We assume that indices_in and indices_out
+        # are sorted such that the last index contains the 'storage' for
+        # that domain.
+        net_storage = end_balance_in[-1] - end_balance_out[-1]
+        if net_storage >= 0:
+            end_balance_in[-1] = net_storage
+            end_balance_out[-1] = 0.
+        else:
+            end_balance_in[-1] = 0.
+            end_balance_out[-1] = net_storage
+
     def _calc_in_out_balance(self, indices_in, indices_out, t1=0, t2=None):
         ts, ts_series = self._current_calc
 
@@ -436,7 +451,18 @@ class WaterBalanceWidget(QDockWidget):
             ts_deltas * ts_series[:, indices_out].T).clip(max=0)
         end_balance_in = end_balance_in_tmp[:, ts_indices_sliced].sum(1)
         end_balance_out = end_balance_out_tmp[:, ts_indices_sliced].sum(1)
+
+        self._fix_net_storage(end_balance_in, end_balance_out)
+
         return end_balance_in, end_balance_out
+
+    @staticmethod
+    def _flip_bar_by_label(
+            label, xlabels, end_balance_in, end_balance_out):
+        """Uses side-effects."""
+        vert_idx = xlabels.index(label)
+        end_balance_in[vert_idx], end_balance_out[vert_idx] = \
+            -1*end_balance_out[vert_idx], -1*end_balance_in[vert_idx]
 
     def show_chart(self):
         if not self._current_calc:
@@ -473,6 +499,21 @@ class WaterBalanceWidget(QDockWidget):
         view_range = viewbox_state['viewRange']
         t1, t2 = view_range[0]
 
+        # init figure
+        plt.close()
+        plt.figure(1)  # TODO: what does this do?
+        plt.suptitle("Water balance from t=%.2f to t=%.2f" % (t1, t2))
+
+        # prevent clipping of tick-labels, among others
+        plt.subplots_adjust(
+            bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.4)
+
+        pattern = '//'
+
+        # ####
+        # 2D #
+        # ####
+
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_2d)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
@@ -482,17 +523,6 @@ class WaterBalanceWidget(QDockWidget):
             "xlabels=%s, indices_in=%s" % (
                 xlabels, indices_in)
         )
-
-        plt.close()
-        plt.figure(1)  # TODO: what does this do?
-
-        plt.suptitle("Water balance from t=%.2f to t=%.2f" % (t1, t2))
-
-        # prevent clipping of tick-labels, among others
-        plt.subplots_adjust(
-            bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.4)
-
-        pattern = '//'
 
         # this axes object will be shared by the other subplots to give them
         # the same y alignment
@@ -508,16 +538,18 @@ class WaterBalanceWidget(QDockWidget):
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
+        # ################
+        # 2D groundwater #
+        # ################
+
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_2d_groundwater)
-
-        # MORE custom hackery to flip bar plot in groundwater domain
-        vert_idx = xlabels.index('2D vertical flow exchange')
         end_balance_in, end_balance_out = self._calc_in_out_balance(
             indices_in, indices_out, t1, t2)
-        end_balance_in[vert_idx], end_balance_out[vert_idx] = \
-            -1*end_balance_out[vert_idx], -1*end_balance_in[vert_idx]
-        # END of custom hacks
+        self._flip_bar_by_label(
+            '2D vertical flow exchange', xlabels, end_balance_in,
+            end_balance_out)
+
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
@@ -535,10 +567,17 @@ class WaterBalanceWidget(QDockWidget):
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
+        # ####
+        # 1D #
+        # ####
+
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_1d)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
             indices_in, indices_out, t1, t2)
+        self._flip_bar_by_label(
+            '1D-2D exchange', xlabels, end_balance_in,
+            end_balance_out)
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
