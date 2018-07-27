@@ -423,7 +423,9 @@ class WaterBalanceWidget(QDockWidget):
         # we need to plot IN-OUT. We assume that indices_in and indices_out
         # are sorted such that the last index contains the 'storage' for
         # that domain.
-        net_storage = end_balance_in[-1] - end_balance_out[-1]
+
+        # + because out is negative
+        net_storage = end_balance_in[-1] + end_balance_out[-1]
         if net_storage >= 0:
             end_balance_in[-1] = net_storage
             end_balance_out[-1] = 0.
