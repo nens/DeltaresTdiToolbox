@@ -380,6 +380,16 @@ class WaterBalanceWidget(QDockWidget):
 
     @classmethod
     def _create_indices_and_labels(cls, input_series):
+        """Create in and out indices for ``ts_series`` Numpy array, and
+        corresponding labels for plotting.
+
+        Args:
+            input_series (dict): dict with INPUT_SERIES keys and indices
+             as values, e.g.: {'2d_in': 0, ...}
+
+        Returns:
+            tuple: indices_in, indices_out, xlabels
+        """
         indices_in = []
         indices_out = []
         xlabels = []
@@ -420,21 +430,18 @@ class WaterBalanceWidget(QDockWidget):
         return indices_in, indices_out, xlabels
 
     @staticmethod
-    def _fix_net_storage(end_balance_in, end_balance_out):
-        """hack to make net storage, employs side-effects."""
-        # More hacks: the 'storage' bar needs to be the net value, i.e.:
-        # we need to plot IN-OUT. We assume that indices_in and indices_out
-        # are sorted such that the last index contains the 'storage' for
-        # that domain.
-
+    def _make_net(end_balance_in, end_balance_out, balance_idx):
+        """hack to calculate the net value, employs side-effects."""
         # + because out is negative
-        net_storage = end_balance_in[-1] + end_balance_out[-1]
-        if net_storage >= 0:
-            end_balance_in[-1] = net_storage
-            end_balance_out[-1] = 0.
+        net_val = (
+            end_balance_in[balance_idx] + end_balance_out[balance_idx]
+        )
+        if net_val >= 0:
+            end_balance_in[balance_idx] = net_val
+            end_balance_out[balance_idx] = 0.
         else:
-            end_balance_in[-1] = 0.
-            end_balance_out[-1] = net_storage
+            end_balance_in[balance_idx] = 0.
+            end_balance_out[balance_idx] = net_val
 
     def _calc_in_out_balance(self, indices_in, indices_out, t1=0, t2=None):
         ts, ts_series = self._current_calc
@@ -457,7 +464,12 @@ class WaterBalanceWidget(QDockWidget):
         end_balance_in = end_balance_in_tmp[:, ts_indices_sliced].sum(1)
         end_balance_out = end_balance_out_tmp[:, ts_indices_sliced].sum(1)
 
-        self._fix_net_storage(end_balance_in, end_balance_out)
+        # More hacks: the 'storage' bar needs to be the net value, i.e.:
+        # we need to plot IN-OUT. We assume that indices_in and indices_out
+        # are sorted such that the last index contains the 'storage' for
+        # that domain.
+        storage_idx = -1
+        self._make_net(end_balance_in, end_balance_out, storage_idx)
 
         return end_balance_in, end_balance_out
 
