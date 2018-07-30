@@ -789,6 +789,11 @@ class WaterBalanceWidget(QDockWidget):
             ts_series[:, [18, 19, 25]] = -1 * ts_series[:, [18, 19, 25]]
         self.__current_calc = (ts, ts_series)
 
+    @property
+    def reverse_dvol_sign(self):
+        aggregation_type = self.agg_combo_box.currentText()
+        return aggregation_type in ['m3/s', 'm3 cumulative']
+
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
         poly_points = self.polygon_tool.points
         wb_polygon = QgsGeometry.fromPolygon([poly_points])
@@ -802,8 +807,6 @@ class WaterBalanceWidget(QDockWidget):
         link_ids, pump_ids = self.calc.get_incoming_and_outcoming_link_ids(
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
-
-        self.reverse_dvol_sign = aggregation_type in ['m3/s', 'm3 cumulative']
 
         ts, total_time = self.calc.get_aggregated_flows(
             link_ids, pump_ids, node_ids, model_part, source_nc,
