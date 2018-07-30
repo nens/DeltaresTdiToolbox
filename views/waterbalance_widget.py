@@ -282,6 +282,8 @@ class WaterBalanceWidget(QDockWidget):
         ('d_2d_groundwater_vol', 25, '2d'),
         ('leak', 26, '2d'),
         ('inflow', 27, '1d'),
+        ('2d_vertical_infiltration_pos', 28, '2d_vert'),
+        ('2d_vertical_infiltration_neg', 29, '2d_vert'),
     ]
 
     # maps INPUT_SERIES var names to x axis labels
@@ -289,11 +291,11 @@ class WaterBalanceWidget(QDockWidget):
     BARCHART_XLABEL_MAPPING = {
         '1d_2d_in': '1D-2D flow',
         '1d_2d_out': '1D-2D flow',
-        'd_2d_vol': '2D storage',
-        'd_1d_vol': '1D storage',
-        'd_2d_groundwater_vol': '2D groundwater storage',
+        'd_2d_vol': 'net change in storage',
+        'd_1d_vol': 'net change in storage',
+        'd_2d_groundwater_vol': 'net change in storage',
         'leak': 'leakage',
-        'infiltration_rate_simple': 'infiltration',
+        'infiltration_rate_simple': 'simple infiltration',
         '2d_in': '2D flow',
         '2d_out': '2D flow',
         '1d_in': '1D flow',
@@ -308,7 +310,11 @@ class WaterBalanceWidget(QDockWidget):
         '1d_bound_out': '1D boundaries',
         '2d_to_1d_neg': '1D-2D exchange',
         '2d_to_1d_pos': '1D-2D exchange',
-        'inflow': 'inflow on 1D from rain',
+        'inflow': '1D inflow from rain',
+        '2d_vertical_infiltration_pos':
+            'infiltration/exfiltration (domain exchange)',
+        '2d_vertical_infiltration_neg':
+            'infiltration/exfiltration (domain exchange)',
     }
 
     def __init__(
@@ -347,7 +353,8 @@ class WaterBalanceWidget(QDockWidget):
 
         self.agg_combo_box.insertItems(
             0,
-            ['m3/s natural', 'm3/s', 'm3 cumulative'])
+            ['m3/s natural', 'm3 cumulative natural', 'm3/s',
+             'm3 cumulative'])
 
         # add listeners
         self.select_polygon_button.toggled.connect(self.toggle_polygon_button)
@@ -373,6 +380,16 @@ class WaterBalanceWidget(QDockWidget):
 
     @classmethod
     def _create_indices_and_labels(cls, input_series):
+        """Create in and out indices for ``ts_series`` Numpy array, and
+        corresponding labels for plotting.
+
+        Args:
+            input_series (dict): dict with INPUT_SERIES keys and indices
+             as values, e.g.: {'2d_in': 0, ...}
+
+        Returns:
+            tuple: indices_in, indices_out, xlabels
+        """
         indices_in = []
         indices_out = []
         xlabels = []
@@ -389,6 +406,12 @@ class WaterBalanceWidget(QDockWidget):
                 indices_in.append(v)
             elif k == '2d_to_1d_neg':
                 indices_out.append(v)
+            # NOTE: for the argument why pos is out and neg is in, see the
+            # comment in ``WaterBalanceCalculation.get_aggregated_flows``
+            elif k == '2d_vertical_infiltration_pos':
+                indices_out.append(v)
+            elif k == '2d_vertical_infiltration_neg':
+                indices_in.append(v)
             elif k.endswith('_in'):
                 indices_in.append(v)
             elif k.endswith('_out'):
@@ -406,8 +429,21 @@ class WaterBalanceWidget(QDockWidget):
                 xlabels.append(label)
         return indices_in, indices_out, xlabels
 
-    def _calc_in_out_balance(
-            self, indices_in, indices_out, xlabels, t1=0, t2=None):
+    @staticmethod
+    def _make_net(end_balance_in, end_balance_out, balance_idx):
+        """hack to calculate the net value, employs side-effects."""
+        # + because out is negative
+        net_val = (
+            end_balance_in[balance_idx] + end_balance_out[balance_idx]
+        )
+        if net_val >= 0:
+            end_balance_in[balance_idx] = net_val
+            end_balance_out[balance_idx] = 0.
+        else:
+            end_balance_in[balance_idx] = 0.
+            end_balance_out[balance_idx] = net_val
+
+    def _calc_in_out_balance(self, indices_in, indices_out, t1=0, t2=None):
         ts, ts_series = self._current_calc
 
         # get indices
@@ -427,7 +463,23 @@ class WaterBalanceWidget(QDockWidget):
             ts_deltas * ts_series[:, indices_out].T).clip(max=0)
         end_balance_in = end_balance_in_tmp[:, ts_indices_sliced].sum(1)
         end_balance_out = end_balance_out_tmp[:, ts_indices_sliced].sum(1)
+
+        # More hacks: the 'storage' bar needs to be the net value, i.e.:
+        # we need to plot IN-OUT. We assume that indices_in and indices_out
+        # are sorted such that the last index contains the 'storage' for
+        # that domain.
+        storage_idx = -1
+        self._make_net(end_balance_in, end_balance_out, storage_idx)
+
         return end_balance_in, end_balance_out
+
+    @staticmethod
+    def _flip_bar_by_label(
+            label, xlabels, end_balance_in, end_balance_out):
+        """Uses side-effects."""
+        vert_idx = xlabels.index(label)
+        end_balance_in[vert_idx], end_balance_out[vert_idx] = \
+            -1*end_balance_out[vert_idx], -1*end_balance_in[vert_idx]
 
     def show_chart(self):
         if not self._current_calc:
@@ -435,7 +487,7 @@ class WaterBalanceWidget(QDockWidget):
 
         input_series_2d = {
             x: y for (x, y, z) in self.INPUT_SERIES
-            if z in ['2d', '1d_2d'] and 'groundwater' not in x
+            if z in ['2d', '1d_2d', '2d_vert'] and 'groundwater' not in x
             and 'leak' not in x
         }
 
@@ -447,7 +499,7 @@ class WaterBalanceWidget(QDockWidget):
         input_series_2d_groundwater = {
             x: y for (x, y, z) in self.INPUT_SERIES
             if z in ['2d'] and 'groundwater' in x
-            or 'leak' in x
+            or 'leak' in x or z in ['2d_vert']
         }
 
         # input_series_1d_2d = {
@@ -464,19 +516,9 @@ class WaterBalanceWidget(QDockWidget):
         view_range = viewbox_state['viewRange']
         t1, t2 = view_range[0]
 
-        indices_in, indices_out, xlabels = self._create_indices_and_labels(
-            input_series_2d)
-        end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels, t1, t2)
-        x = np.arange(len(xlabels))
-        assert x.shape[0] == end_balance_in.shape[0], (
-            "xlabels=%s, indices_in=%s" % (
-                xlabels, indices_in)
-        )
-
+        # init figure
         plt.close()
         plt.figure(1)  # TODO: what does this do?
-
         plt.suptitle("Water balance from t=%.2f to t=%.2f" % (t1, t2))
 
         # prevent clipping of tick-labels, among others
@@ -484,6 +526,20 @@ class WaterBalanceWidget(QDockWidget):
             bottom=.3, top=.9, left=.125, right=.9, hspace=1, wspace=.4)
 
         pattern = '//'
+
+        # ####
+        # 2D #
+        # ####
+
+        indices_in, indices_out, xlabels = self._create_indices_and_labels(
+            input_series_2d)
+        end_balance_in, end_balance_out = self._calc_in_out_balance(
+            indices_in, indices_out, t1, t2)
+        x = np.arange(len(xlabels))
+        assert x.shape[0] == end_balance_in.shape[0], (
+            "xlabels=%s, indices_in=%s" % (
+                xlabels, indices_in)
+        )
 
         # this axes object will be shared by the other subplots to give them
         # the same y alignment
@@ -499,10 +555,18 @@ class WaterBalanceWidget(QDockWidget):
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
+        # ################
+        # 2D groundwater #
+        # ################
+
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_2d_groundwater)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels, t1, t2)
+            indices_in, indices_out, t1, t2)
+        self._flip_bar_by_label(
+            'infiltration/exfiltration (domain exchange)', xlabels,
+            end_balance_in, end_balance_out)
+
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
@@ -520,10 +584,17 @@ class WaterBalanceWidget(QDockWidget):
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
 
+        # ####
+        # 1D #
+        # ####
+
         indices_in, indices_out, xlabels = self._create_indices_and_labels(
             input_series_1d)
         end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, xlabels, t1, t2)
+            indices_in, indices_out, t1, t2)
+        self._flip_bar_by_label(
+            '1D-2D exchange', xlabels, end_balance_in,
+            end_balance_out)
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
             "xlabels=%s, indices_in=%s" % (
@@ -704,6 +775,8 @@ class WaterBalanceWidget(QDockWidget):
             self.plot_widget.setLabel("left", "Cumulatieve debiet", "m3")
         elif self.agg_combo_box.currentText() == 'm3/s natural':
             self.plot_widget.setLabel("left", "Debiet", "m3/s")
+        elif self.agg_combo_box.currentText() == 'm3 cumulative natural':
+            self.plot_widget.setLabel("left", "Cumulatieve debiet", "m3")
         else:
             self.plot_widget.setLabel("left", "-", "-")
 
@@ -730,6 +803,11 @@ class WaterBalanceWidget(QDockWidget):
             ts_series[:, [18, 19, 25]] = -1 * ts_series[:, [18, 19, 25]]
         self.__current_calc = (ts, ts_series)
 
+    @property
+    def reverse_dvol_sign(self):
+        aggregation_type = self.agg_combo_box.currentText()
+        return aggregation_type in ['m3/s', 'm3 cumulative']
+
     def calc_wb(self, model_part, source_nc, aggregation_type, settings):
         poly_points = self.polygon_tool.points
         wb_polygon = QgsGeometry.fromPolygon([poly_points])
@@ -743,11 +821,6 @@ class WaterBalanceWidget(QDockWidget):
         link_ids, pump_ids = self.calc.get_incoming_and_outcoming_link_ids(
             wb_polygon, model_part)
         node_ids = self.calc.get_nodes(wb_polygon, model_part)
-
-        if aggregation_type == 'm3/s natural':
-            self.reverse_dvol_sign = False
-        else:
-            self.reverse_dvol_sign = True
 
         ts, total_time = self.calc.get_aggregated_flows(
             link_ids, pump_ids, node_ids, model_part, source_nc,
@@ -891,7 +964,8 @@ class WaterBalanceWidget(QDockWidget):
                 # throw config error
                 log.warning('aggregation %s method unknown.', serie_setting['default_method'])
 
-            if aggregation_type == 'm3 cumulative':
+            if aggregation_type == 'm3 cumulative' or \
+                    aggregation_type == 'm3 cumulative natural':
                 log.debug('aggregate')
                 diff = np.append([0], np.diff(ts))
 
