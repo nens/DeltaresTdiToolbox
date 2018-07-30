@@ -291,11 +291,11 @@ class WaterBalanceWidget(QDockWidget):
     BARCHART_XLABEL_MAPPING = {
         '1d_2d_in': '1D-2D flow',
         '1d_2d_out': '1D-2D flow',
-        'd_2d_vol': 'net 2D storage',
-        'd_1d_vol': 'net 1D storage',
-        'd_2d_groundwater_vol': 'net 2D groundwater storage',
+        'd_2d_vol': 'net change in storage',
+        'd_1d_vol': 'net change in storage',
+        'd_2d_groundwater_vol': 'net change in storage',
         'leak': 'leakage',
-        'infiltration_rate_simple': 'infiltration',
+        'infiltration_rate_simple': 'simple infiltration',
         '2d_in': '2D flow',
         '2d_out': '2D flow',
         '1d_in': '1D flow',
@@ -310,9 +310,11 @@ class WaterBalanceWidget(QDockWidget):
         '1d_bound_out': '1D boundaries',
         '2d_to_1d_neg': '1D-2D exchange',
         '2d_to_1d_pos': '1D-2D exchange',
-        'inflow': 'inflow on 1D from rain',
-        '2d_vertical_infiltration_pos': '2D vertical flow exchange',
-        '2d_vertical_infiltration_neg': '2D vertical flow exchange',
+        'inflow': '1D inflow from rain',
+        '2d_vertical_infiltration_pos':
+            'infiltration/exfiltration (domain exchange)',
+        '2d_vertical_infiltration_neg':
+            'infiltration/exfiltration (domain exchange)',
     }
 
     def __init__(
@@ -550,8 +552,8 @@ class WaterBalanceWidget(QDockWidget):
         end_balance_in, end_balance_out = self._calc_in_out_balance(
             indices_in, indices_out, t1, t2)
         self._flip_bar_by_label(
-            '2D vertical flow exchange', xlabels, end_balance_in,
-            end_balance_out)
+            'infiltration/exfiltration (domain exchange)', xlabels,
+            end_balance_in, end_balance_out)
 
         x = np.arange(len(xlabels))
         assert x.shape[0] == end_balance_in.shape[0], (
