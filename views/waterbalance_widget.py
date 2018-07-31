@@ -96,7 +96,8 @@ def _dvol_cmp_func(a, b):
 
 @functools.total_ordering
 class Bar(object):
-    """Bar (for barchart) with positive and negative components."""
+    """Bar for waterbalance barchart with positive and negative components.
+    """
     SERIES_NAME_TO_INDEX = {name: idx for (name, idx, _) in INPUT_SERIES}
 
     def __init__(self, label_name, in_series, out_series, type):
