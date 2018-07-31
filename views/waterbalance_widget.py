@@ -469,7 +469,7 @@ class WaterBalanceWidget(QDockWidget):
             'out': ['2d_vertical_infiltration_pos'],
             'type': '2d_vert',
         }, {
-            'label_name': 'net change in storage',
+            'label_name': 'change in storage',
             'in': ['d_2d_vol', 'd_2d_groundwater_vol', 'd_1d_vol'],
             'out': ['d_2d_vol', 'd_2d_groundwater_vol', 'd_1d_vol'],
             'type': 'NETVOL',
