@@ -147,12 +147,11 @@ class Bar(object):
         self._balance_out = balance_tmp[:, ts_indices_sliced].sum()
 
     def calc_balance(self, ts, ts_series, t1=0, t2=None):
+        """Calculate balance values."""
         self.set_end_balance_in(ts, ts_series, t1, t2)
         self.set_end_balance_out(ts, ts_series, t1, t2)
         if self.is_storage_like:
             self.convert_to_net()
-        # if self.label_name == '1D-2D flow':
-        #     import qtdb; qtdb.set_trace()
 
     def convert_to_net(self):
         """Make a bar that contains the net value (positive or negative).
@@ -167,6 +166,7 @@ class Bar(object):
             self._balance_out = net_val
 
     def invert(self):
+        """Make positive negative and vice versa."""
         self._balance_in, self._balance_out = \
             -1 * self._balance_out, -1 * self._balance_in
 
