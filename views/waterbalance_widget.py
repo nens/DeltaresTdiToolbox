@@ -424,8 +424,8 @@ class WaterBalanceWidget(QDockWidget):
             'type': '2d',
         }, {
             'label_name': '1D flow',
-            'in': ['2d_in'],
-            'out': ['2d_out'],
+            'in': ['1d_in'],
+            'out': ['1d_out'],
             'type': '1d',
         }, {
             'label_name': '2D groundwater flow',

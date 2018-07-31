@@ -9,7 +9,7 @@ from PyQt4.QtCore import Qt
 from qgis.core import QgsFeatureRequest, QgsPoint
 
 # Import the code for the DockWidget
-from zDeltaresTdiToolbox.views.waterbalance_widget import WaterBalanceWidget
+from ..views.waterbalance_widget import WaterBalanceWidget
 
 log = logging.getLogger('DeltaresTdi.' + __name__)
 
