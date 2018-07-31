@@ -166,7 +166,7 @@ class Bar(object):
             self._balance_out = net_val
 
     def invert(self):
-        """Make positive negative and vice versa."""
+        """Flip positive to negative and vice versa."""
         self._balance_in, self._balance_out = \
             -1 * self._balance_out, -1 * self._balance_in
 
