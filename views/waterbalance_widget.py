@@ -422,9 +422,10 @@ class WaterBalanceWidget(QDockWidget):
             'out': ['1d_2d_out'],
             'type': '2d',
         }, {
-            'label_name': '1D-2D flow',
-            'in': ['1d_2d_in'],
-            'out': ['1d_2d_out'],
+            'label_name': '1D-2D flow (all domains)',
+            # does this make sense?
+            'in': ['1d_2d_in', '1d_2d_out'],
+            'out': ['1d_2d_in', '1d_2d_out'],
             'type': 'NETVOL',
         }, {
             'label_name': 'net change in storage',
