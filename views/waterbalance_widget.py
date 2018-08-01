@@ -1,4 +1,5 @@
 import copy
+import functools
 import logging
 
 import matplotlib.pyplot as plt
@@ -32,6 +33,40 @@ except AttributeError:
 serie_settings = {s['name']: s for s in serie_settings}
 
 
+INPUT_SERIES = [
+    ('2d_in', 0, '2d'),
+    ('2d_out', 1, '2d'),
+    ('1d_in', 2, '1d'),
+    ('1d_out', 3, '1d'),
+    ('2d_bound_in', 4, '2d'),
+    ('2d_bound_out', 5, '2d'),
+    ('1d_bound_in', 6, '1d'),
+    ('1d_bound_out', 7, '1d'),
+    ('1d_2d_in', 8, '1d'),
+    ('1d_2d_out', 9, '2d'),
+    ('2d_to_1d_pos', 10, '1d_2d'),
+    ('2d_to_1d_neg', 11, '1d_2d'),
+    ('pump_in', 12, '1d'),
+    ('pump_out', 13, '1d'),
+    ('rain', 14, '2d'),
+    ('infiltration_rate_simple', 15, '2d'),
+    ('lat_2d', 16, '2d'),
+    ('lat_1d', 17, '1d'),
+    ('d_2d_vol', 18, '2d'),
+    ('d_1d_vol', 19, '1d'),
+    ('error_2d', 20, 'error_2d'),
+    ('error_1d', 21, 'error_1d'),
+    ('error_1d_2d', 22, 'error_1d_2d'),
+    ('2d_groundwater_in', 23, '2d'),
+    ('2d_groundwater_out', 24, '2d'),
+    ('d_2d_groundwater_vol', 25, '2d'),
+    ('leak', 26, '2d'),
+    ('inflow', 27, '1d'),
+    ('2d_vertical_infiltration_pos', 28, '2d_vert'),
+    ('2d_vertical_infiltration_neg', 29, '2d_vert'),
+]
+
+
 # some helper functions
 #######################
 
@@ -57,6 +92,97 @@ def _dvol_cmp_func(a, b):
     return cmp(a, b)
 
 #######################
+
+
+@functools.total_ordering
+class Bar(object):
+    """Bar for waterbalance barchart with positive and negative components.
+    """
+    SERIES_NAME_TO_INDEX = {name: idx for (name, idx, _) in INPUT_SERIES}
+
+    def __init__(self, label_name, in_series, out_series, type):
+        self.label_name = label_name
+        self.in_series = in_series
+        self.out_series = out_series
+        self.type = type
+        self._balance_in = None
+        self._balance_out = None
+
+    @staticmethod
+    def _get_time_indices(ts, t1, t2):
+        """Time series indices in range t1-t2."""
+        idx_x1 = np.searchsorted(ts, t1)
+        if not t2:
+            idx_x2 = len(ts)
+        else:
+            idx_x2 = np.searchsorted(ts, t2)
+        return np.arange(idx_x1, idx_x2)
+
+    @property
+    def end_balance_in(self):
+        return self._balance_in
+
+    def set_end_balance_in(self, ts, ts_series, t1=0, t2=None):
+        idxs = [self.SERIES_NAME_TO_INDEX[name] for name in self.in_series]
+        ts_indices_sliced = self._get_time_indices(ts, t1, t2)
+        # NOTE: we're using np.clip to determine in/out for dvol (for flows
+        # /discharges this shouldn't matter I THINK)
+        ts_deltas = np.concatenate(([0], np.diff(ts)))
+        # shape = (N_idxs, len(ts))
+        balance_tmp = (ts_deltas * ts_series[:, idxs].T).clip(min=0)
+        self._balance_in = balance_tmp[:, ts_indices_sliced].sum()
+
+    @property
+    def end_balance_out(self):
+        return self._balance_out
+
+    def set_end_balance_out(self, ts, ts_series, t1=0, t2=None):
+        idxs = [self.SERIES_NAME_TO_INDEX[name] for name in self.out_series]
+        ts_indices_sliced = self._get_time_indices(ts, t1, t2)
+        # NOTE: we're using np.clip to determine in/out for dvol (for flows
+        # /discharges this shouldn't matter I THINK)
+        ts_deltas = np.concatenate(([0], np.diff(ts)))
+        # shape = (N_idxs, len(ts))
+        balance_tmp = (ts_deltas * ts_series[:, idxs].T).clip(max=0)
+        self._balance_out = balance_tmp[:, ts_indices_sliced].sum()
+
+    def calc_balance(self, ts, ts_series, t1=0, t2=None):
+        """Calculate balance values."""
+        self.set_end_balance_in(ts, ts_series, t1, t2)
+        self.set_end_balance_out(ts, ts_series, t1, t2)
+        if self.is_storage_like:
+            self.convert_to_net()
+
+    def convert_to_net(self):
+        """Make a bar that contains the net value (positive or negative).
+        """
+        # NOTE: use addition because out is negative
+        net_val = self._balance_in + self._balance_out
+        if net_val > 0:
+            self._balance_in = net_val
+            self._balance_out = 0
+        else:
+            self._balance_in = 0
+            self._balance_out = net_val
+
+    def invert(self):
+        """Flip positive to negative and vice versa."""
+        self._balance_in, self._balance_out = \
+            -1 * self._balance_out, -1 * self._balance_in
+
+    @property
+    def is_storage_like(self):
+        return 'storage' in self.label_name
+
+    # add sorting
+    def __lt__(self, other):
+        # TODO: label_names are not unique, should add 'type' to make a
+        # primary key
+        if not self.is_storage_like and other.is_storage_like:
+            return True
+        elif self.is_storage_like and not other.is_storage_like:
+            return False
+        return self.label_name < other.label_name
 
 
 class WaterbalanceItemTable(QTableView):
@@ -253,69 +379,113 @@ class WaterBalancePlotWidget(pg.PlotWidget):
 class WaterBalanceWidget(QDockWidget):
     closingWidget = pyqtSignal()
 
-    INPUT_SERIES = [
-        ('2d_in', 0, '2d'),
-        ('2d_out', 1, '2d'),
-        ('1d_in', 2, '1d'),
-        ('1d_out', 3, '1d'),
-        ('2d_bound_in', 4, '2d'),
-        ('2d_bound_out', 5, '2d'),
-        ('1d_bound_in', 6, '1d'),
-        ('1d_bound_out', 7, '1d'),
-        ('1d_2d_in', 8, '1d'),
-        ('1d_2d_out', 9, '2d'),
-        ('2d_to_1d_pos', 10, '1d_2d'),
-        ('2d_to_1d_neg', 11, '1d_2d'),
-        ('pump_in', 12, '1d'),
-        ('pump_out', 13, '1d'),
-        ('rain', 14, '2d'),
-        ('infiltration_rate_simple', 15, '2d'),
-        ('lat_2d', 16, '2d'),
-        ('lat_1d', 17, '1d'),
-        ('d_2d_vol', 18, '2d'),
-        ('d_1d_vol', 19, '1d'),
-        ('error_2d', 20, 'error_2d'),
-        ('error_1d', 21, 'error_1d'),
-        ('error_1d_2d', 22, 'error_1d_2d'),
-        ('2d_groundwater_in', 23, '2d'),
-        ('2d_groundwater_out', 24, '2d'),
-        ('d_2d_groundwater_vol', 25, '2d'),
-        ('leak', 26, '2d'),
-        ('inflow', 27, '1d'),
-        ('2d_vertical_infiltration_pos', 28, '2d_vert'),
-        ('2d_vertical_infiltration_neg', 29, '2d_vert'),
-    ]
+    INPUT_SERIES = INPUT_SERIES
 
-    # maps INPUT_SERIES var names to x axis labels
-    # NOTE: _in/_out pairings MUST map to the same label
-    BARCHART_XLABEL_MAPPING = {
-        '1d_2d_in': '1D-2D flow',
-        '1d_2d_out': '1D-2D flow',
-        'd_2d_vol': 'net change in storage',
-        'd_1d_vol': 'net change in storage',
-        'd_2d_groundwater_vol': 'net change in storage',
-        'leak': 'leakage',
-        'infiltration_rate_simple': 'simple infiltration',
-        '2d_in': '2D flow',
-        '2d_out': '2D flow',
-        '1d_in': '1D flow',
-        '1d_out': '1D flow',
-        '2d_groundwater_in': '2D groundwater flow',
-        '2d_groundwater_out': '2D groundwater flow',
-        'lat_2d': '2D laterals',
-        'lat_1d': '1D laterals',
-        '2d_bound_in': '2D boundaries',
-        '2d_bound_out': '2D boundaries',
-        '1d_bound_in': '1D boundaries',
-        '1d_bound_out': '1D boundaries',
-        '2d_to_1d_neg': '1D-2D exchange',
-        '2d_to_1d_pos': '1D-2D exchange',
-        'inflow': '1D inflow from rain',
-        '2d_vertical_infiltration_pos':
-            'infiltration/exfiltration (domain exchange)',
-        '2d_vertical_infiltration_neg':
-            'infiltration/exfiltration (domain exchange)',
-    }
+    IN_OUT_SERIES = [
+        {
+            'label_name': '1D-2D flow',
+            'in': ['1d_2d_in'],
+            'out': ['1d_2d_in'],
+            'type': '1d',
+        }, {
+            'label_name': '1D-2D flow',
+            'in': ['1d_2d_out'],
+            'out': ['1d_2d_out'],
+            'type': '2d',
+        }, {
+            'label_name': 'net change in storage',
+            'in': ['d_2d_vol'],
+            'out': ['d_2d_vol'],
+            'type': '2d',
+        }, {
+            'label_name': 'net change in storage',
+            'in': ['d_1d_vol'],
+            'out': ['d_1d_vol'],
+            'type': '1d',
+        }, {
+            'label_name': 'net change in storage',
+            'in': ['d_2d_groundwater_vol'],
+            'out': ['d_2d_groundwater_vol'],
+            'type': '2d_groundwater',
+        }, {
+            'label_name': 'leakage',
+            'in': ['leak'],
+            'out': ['leak'],
+            'type': '2d_groundwater',
+        }, {
+            'label_name': 'simple infiltration',
+            'in': ['infiltration_rate_simple'],
+            'out': ['infiltration_rate_simple'],
+            'type': '2d',
+        }, {
+            'label_name': '2D flow',
+            'in': ['2d_in'],
+            'out': ['2d_out'],
+            'type': '2d',
+        }, {
+            'label_name': '1D flow',
+            'in': ['1d_in'],
+            'out': ['1d_out'],
+            'type': '1d',
+        }, {
+            'label_name': '2D groundwater flow',
+            'in': ['2d_groundwater_in'],
+            'out': ['2d_groundwater_out'],
+            'type': '2d_groundwater',
+        }, {
+            'label_name': '2D laterals',
+            'in': ['lat_2d'],
+            'out': ['lat_2d'],
+            'type': '2d',
+        }, {
+            'label_name': '1D laterals',
+            'in': ['lat_1d'],
+            'out': ['lat_1d'],
+            'type': '1d',
+        }, {
+            'label_name': '2D boundaries',
+            'in': ['2d_bound_in'],
+            'out': ['2d_bound_out'],
+            'type': '2d',
+        }, {
+            'label_name': '1D boundaries',
+            'in': ['1d_bound_in'],
+            'out': ['1d_bound_out'],
+            'type': '1d',
+        }, {
+            'label_name': '1D-2D exchange',
+            'in': ['2d_to_1d_pos'],
+            'out': ['2d_to_1d_neg'],
+            'type': '1d_2d',
+        }, {
+            'label_name': '1D inflow from rain',
+            'in': ['inflow'],
+            'out': ['inflow'],
+            'type': '1d',
+        }, {
+            'label_name': 'infiltration/exfiltration (domain exchange)',
+            # NOTE: for the argument why pos is out and neg is in, see the
+            # comment in ``WaterBalanceCalculation.get_aggregated_flows``
+            'in': ['2d_vertical_infiltration_neg'],
+            'out': ['2d_vertical_infiltration_pos'],
+            'type': '2d_vert',
+        }, {
+            'label_name': 'change in storage',
+            'in': ['d_2d_vol', 'd_2d_groundwater_vol', 'd_1d_vol'],
+            'out': ['d_2d_vol', 'd_2d_groundwater_vol', 'd_1d_vol'],
+            'type': 'NETVOL',
+        }, {
+            'label_name': 'pump',
+            'in': ['pump_in'],
+            'out': ['pump_out'],
+            'type': '1d',
+        }, {
+            'label_name': 'rain',
+            'in': ['rain'],
+            'out': ['rain'],
+            'type': '2d',
+        }
+    ]
 
     def __init__(
             self, parent=None, iface=None, ts_datasource=None, wb_calc=None):
@@ -378,138 +548,69 @@ class WaterBalanceWidget(QDockWidget):
 
         self.__current_calc = None  # cache the results of calculation
 
-    @classmethod
-    def _create_indices_and_labels(cls, input_series):
-        """Create in and out indices for ``ts_series`` Numpy array, and
-        corresponding labels for plotting.
-
-        Args:
-            input_series (dict): dict with INPUT_SERIES keys and indices
-             as values, e.g.: {'2d_in': 0, ...}
-
-        Returns:
-            tuple: indices_in, indices_out, xlabels
-        """
-        indices_in = []
-        indices_out = []
-        xlabels = []
-
-        sorted_keys = sorted(input_series.keys(), cmp=_dvol_cmp_func)
-        for k in sorted_keys:
-            v = input_series[k]
-            # CAUTION: these two flow types only have in or out, i.e.,
-            # they don't form a pair
-            if k == '1d_2d_in' or k == '1d_2d_out':
-                indices_in.append(v)
-                indices_out.append(v)
-            elif k == '2d_to_1d_pos':
-                indices_in.append(v)
-            elif k == '2d_to_1d_neg':
-                indices_out.append(v)
-            # NOTE: for the argument why pos is out and neg is in, see the
-            # comment in ``WaterBalanceCalculation.get_aggregated_flows``
-            elif k == '2d_vertical_infiltration_pos':
-                indices_out.append(v)
-            elif k == '2d_vertical_infiltration_neg':
-                indices_in.append(v)
-            elif k.endswith('_in'):
-                indices_in.append(v)
-            elif k.endswith('_out'):
-                indices_out.append(v)
-            else:
-                indices_in.append(v)
-                indices_out.append(v)
-
-            try:
-                label = cls.BARCHART_XLABEL_MAPPING[k]
-            except KeyError:
-                label = k.rsplit('_in')[0].rsplit('_out')[0]
-
-            if label not in xlabels:
-                xlabels.append(label)
-        return indices_in, indices_out, xlabels
-
-    @staticmethod
-    def _make_net(end_balance_in, end_balance_out, balance_idx):
-        """hack to calculate the net value, employs side-effects."""
-        # + because out is negative
-        net_val = (
-            end_balance_in[balance_idx] + end_balance_out[balance_idx]
-        )
-        if net_val >= 0:
-            end_balance_in[balance_idx] = net_val
-            end_balance_out[balance_idx] = 0.
-        else:
-            end_balance_in[balance_idx] = 0.
-            end_balance_out[balance_idx] = net_val
-
-    def _calc_in_out_balance(self, indices_in, indices_out, t1=0, t2=None):
-        ts, ts_series = self._current_calc
-
-        # get indices
-        idx_x1 = np.searchsorted(ts, t1)
-        if not t2:
-            idx_x2 = len(ts)
-        else:
-            idx_x2 = np.searchsorted(ts, t2)
-        ts_indices_sliced = np.arange(idx_x1, idx_x2)
-
-        # NOTE: we're using np.clip to determine in/out for dvol (for flows
-        # /discharges this shouldn't matter I THINK)
-        ts_deltas = np.concatenate(([0], np.diff(ts)))
-        end_balance_in_tmp = (
-            ts_deltas * ts_series[:, indices_in].T).clip(min=0)
-        end_balance_out_tmp = (
-            ts_deltas * ts_series[:, indices_out].T).clip(max=0)
-        end_balance_in = end_balance_in_tmp[:, ts_indices_sliced].sum(1)
-        end_balance_out = end_balance_out_tmp[:, ts_indices_sliced].sum(1)
-
-        # More hacks: the 'storage' bar needs to be the net value, i.e.:
-        # we need to plot IN-OUT. We assume that indices_in and indices_out
-        # are sorted such that the last index contains the 'storage' for
-        # that domain.
-        storage_idx = -1
-        self._make_net(end_balance_in, end_balance_out, storage_idx)
-
-        return end_balance_in, end_balance_out
-
-    @staticmethod
-    def _flip_bar_by_label(
-            label, xlabels, end_balance_in, end_balance_out):
-        """Uses side-effects."""
-        vert_idx = xlabels.index(label)
-        end_balance_in[vert_idx], end_balance_out[vert_idx] = \
-            -1*end_balance_out[vert_idx], -1*end_balance_in[vert_idx]
-
     def show_chart(self):
         if not self._current_calc:
             return
+        ts, ts_series = self._current_calc
 
-        input_series_2d = {
-            x: y for (x, y, z) in self.INPUT_SERIES
-            if z in ['2d', '1d_2d', '2d_vert'] and 'groundwater' not in x
-            and 'leak' not in x
-        }
+        io_series_net = [
+            x for x in self.IN_OUT_SERIES if (
+                x['type'] in [
+                    '2d', '1d_2d', '2d_vert', '2d_groundwater', '1d'] and
+                'storage' not in x['label_name']) or
+            x['type'] == 'NETVOL'
+        ]
 
-        input_series_1d = {
-            x: y for (x, y, z) in self.INPUT_SERIES
-            if z in ['1d', '1d_2d']
-        }
+        io_series_2d = [
+            x for x in self.IN_OUT_SERIES if x['type'] in
+            ['2d', '1d_2d', '2d_vert']
+        ]
 
-        input_series_2d_groundwater = {
-            x: y for (x, y, z) in self.INPUT_SERIES
-            if z in ['2d'] and 'groundwater' in x
-            or 'leak' in x or z in ['2d_vert']
-        }
+        io_series_2d_groundwater = [
+            x for x in self.IN_OUT_SERIES if x['type'] in [
+                '2d_groundwater', '2d_vert']
+        ]
 
-        # input_series_1d_2d = {
-        #     x: y for (x, y, z) in self.INPUT_SERIES
-        #     if z in ['1d_2d']
-        # }
+        io_series_1d = [
+            x for x in self.IN_OUT_SERIES if x['type'] in [
+                '1d', '1d_2d']
+        ]
 
-        # xlabels = ['rain', '2d', '1d', '2d bound', '1d bound']
-        # indices_in = [14, 0, 2, 4, 6]
-        # indices_out = [14, 1, 3, 5, 7]
+        bars_net = sorted([
+            Bar(
+                label_name=x['label_name'],
+                in_series=x['in'],
+                out_series=x['out'],
+                type=x['type'],
+            ) for x in io_series_net
+        ])
+
+        bars_2d = sorted([
+            Bar(
+                label_name=x['label_name'],
+                in_series=x['in'],
+                out_series=x['out'],
+                type=x['type'],
+            ) for x in io_series_2d
+        ])
+
+        bars_2d_groundwater = sorted([
+            Bar(
+                label_name=x['label_name'],
+                in_series=x['in'],
+                out_series=x['out'],
+                type=x['type'],
+            ) for x in io_series_2d_groundwater
+        ])
+
+        bars_1d = sorted([
+            Bar(
+                label_name=x['label_name'],
+                in_series=x['in'],
+                out_series=x['out'],
+                type=x['type'],
+            ) for x in io_series_1d
+        ])
 
         # get timeseries x range in plot widget
         viewbox_state = self.plot_widget.getPlotItem().getViewBox().getState()
@@ -527,29 +628,51 @@ class WaterBalanceWidget(QDockWidget):
 
         pattern = '//'
 
-        # ####
-        # 2D #
-        # ####
+        # #####
+        # Net #
+        # #####
 
-        indices_in, indices_out, xlabels = self._create_indices_and_labels(
-            input_series_2d)
-        end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, t1, t2)
-        x = np.arange(len(xlabels))
-        assert x.shape[0] == end_balance_in.shape[0], (
-            "xlabels=%s, indices_in=%s" % (
-                xlabels, indices_in)
-        )
+        for b in bars_net:
+            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
+            b.convert_to_net()
 
-        # this axes object will be shared by the other subplots to give them
-        # the same y alignment
-        ax1 = plt.subplot(131)
+        x = np.arange(len(bars_net))
+        xlabels = [b.label_name for b in bars_net]
+        end_balance_in = [b.end_balance_in for b in bars_net]
+        end_balance_out = [b.end_balance_out for b in bars_net]
+
+        plt.subplot(221)
         plt.axhline(color='black', lw=.5)
         bar_in = plt.bar(x, end_balance_in, label='In')
         bar_out = plt.bar(x, end_balance_out, label='Out')
         bar_in[-1].set_hatch(pattern)
         bar_out[-1].set_hatch(pattern)
-        # bar_in[-1].set_color('gray')
+        plt.xticks(x, xlabels, rotation=45, ha='right')
+        plt.title('Net water balance')
+        plt.ylabel(r'volume ($m^3$)')
+        plt.legend()
+
+        # ####
+        # 2D #
+        # ####
+
+        for b in bars_2d:
+            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
+
+        x = np.arange(len(bars_2d))
+        xlabels = [b.label_name for b in bars_2d]
+        end_balance_in = [b.end_balance_in for b in bars_2d]
+        end_balance_out = [b.end_balance_out for b in bars_2d]
+
+        # this axes object will be shared by the other subplots to give them
+        # the same y alignment
+        ax1 = plt.subplot(234)
+
+        plt.axhline(color='black', lw=.5)
+        bar_in = plt.bar(x, end_balance_in, label='In')
+        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in[-1].set_hatch(pattern)
+        bar_out[-1].set_hatch(pattern)
         plt.xticks(x, xlabels, rotation=45, ha='right')
         plt.title('2D surface water domain')
         plt.ylabel(r'volume ($m^3$)')
@@ -559,21 +682,17 @@ class WaterBalanceWidget(QDockWidget):
         # 2D groundwater #
         # ################
 
-        indices_in, indices_out, xlabels = self._create_indices_and_labels(
-            input_series_2d_groundwater)
-        end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, t1, t2)
-        self._flip_bar_by_label(
-            'infiltration/exfiltration (domain exchange)', xlabels,
-            end_balance_in, end_balance_out)
+        for b in bars_2d_groundwater:
+            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
+            if b.label_name == 'infiltration/exfiltration (domain exchange)':
+                b.invert()
 
-        x = np.arange(len(xlabels))
-        assert x.shape[0] == end_balance_in.shape[0], (
-            "xlabels=%s, indices_in=%s" % (
-                xlabels, indices_in)
-        )
+        x = np.arange(len(bars_2d_groundwater))
+        xlabels = [b.label_name for b in bars_2d_groundwater]
+        end_balance_in = [b.end_balance_in for b in bars_2d_groundwater]
+        end_balance_out = [b.end_balance_out for b in bars_2d_groundwater]
 
-        plt.subplot(132, sharey=ax1)
+        plt.subplot(235, sharey=ax1)
         plt.axhline(color='black', lw=.5)
         bar_in = plt.bar(x, end_balance_in, label='In')
         bar_out = plt.bar(x, end_balance_out, label='Out')
@@ -588,20 +707,17 @@ class WaterBalanceWidget(QDockWidget):
         # 1D #
         # ####
 
-        indices_in, indices_out, xlabels = self._create_indices_and_labels(
-            input_series_1d)
-        end_balance_in, end_balance_out = self._calc_in_out_balance(
-            indices_in, indices_out, t1, t2)
-        self._flip_bar_by_label(
-            '1D-2D exchange', xlabels, end_balance_in,
-            end_balance_out)
-        x = np.arange(len(xlabels))
-        assert x.shape[0] == end_balance_in.shape[0], (
-            "xlabels=%s, indices_in=%s" % (
-                xlabels, indices_in)
-        )
+        for b in bars_1d:
+            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
+            if b.label_name == '1D-2D exchange':
+                b.invert()
 
-        plt.subplot(133, sharey=ax1)
+        x = np.arange(len(bars_1d))
+        xlabels = [b.label_name for b in bars_1d]
+        end_balance_in = [b.end_balance_in for b in bars_1d]
+        end_balance_out = [b.end_balance_out for b in bars_1d]
+
+        plt.subplot(236, sharey=ax1)
         plt.axhline(color='black', lw=.5)
         bar_in = plt.bar(x, end_balance_in, label='In')
         bar_out = plt.bar(x, end_balance_out, label='Out')
