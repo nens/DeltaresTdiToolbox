@@ -82,15 +82,6 @@ def _get_feature_iterator(layer, request_filter):
     else:
         return []
 
-
-def _dvol_cmp_func(a, b):
-    """Comparator for sort/sorted to make dvol last."""
-    if a in ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol']:
-        return 1
-    elif b in ['d_2d_vol', 'd_1d_vol', 'd_2d_groundwater_vol']:
-        return -1
-    return cmp(a, b)
-
 #######################
 
 
@@ -183,6 +174,44 @@ class Bar(object):
         elif self.is_storage_like and not other.is_storage_like:
             return False
         return self.label_name < other.label_name
+
+
+class BarManager(object):
+    def __init__(self, series):
+        self.series = series
+        self.bars = sorted([
+            Bar(
+                label_name=x['label_name'],
+                in_series=x['in'],
+                out_series=x['out'],
+                type=x['type'],
+            ) for x in series
+        ])
+
+    def calc_balance(
+            self, ts, ts_series, t1, t2, net=False, invert=[]):
+        for b in self.bars:
+            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
+            if net:
+                b.convert_to_net()
+            if b.label_name in invert:
+                b.invert()
+
+    @property
+    def x(self):
+        return np.arange(len(self.bars))
+
+    @property
+    def xlabels(self):
+        return [b.label_name for b in self.bars]
+
+    @property
+    def end_balance_in(self):
+        return [b.end_balance_in for b in self.bars]
+
+    @property
+    def end_balance_out(self):
+        return [b.end_balance_out for b in self.bars]
 
 
 class WaterbalanceItemTable(QTableView):
@@ -557,7 +586,8 @@ class WaterBalanceWidget(QDockWidget):
             x for x in self.IN_OUT_SERIES if (
                 x['type'] in [
                     '2d', '1d_2d', '2d_vert', '2d_groundwater', '1d'] and
-                'storage' not in x['label_name']) or
+                'storage' not in x['label_name'] and
+                'exchange' not in x['label_name']) or
             x['type'] == 'NETVOL'
         ]
 
@@ -576,46 +606,23 @@ class WaterBalanceWidget(QDockWidget):
                 '1d', '1d_2d']
         ]
 
-        bars_net = sorted([
-            Bar(
-                label_name=x['label_name'],
-                in_series=x['in'],
-                out_series=x['out'],
-                type=x['type'],
-            ) for x in io_series_net
-        ])
-
-        bars_2d = sorted([
-            Bar(
-                label_name=x['label_name'],
-                in_series=x['in'],
-                out_series=x['out'],
-                type=x['type'],
-            ) for x in io_series_2d
-        ])
-
-        bars_2d_groundwater = sorted([
-            Bar(
-                label_name=x['label_name'],
-                in_series=x['in'],
-                out_series=x['out'],
-                type=x['type'],
-            ) for x in io_series_2d_groundwater
-        ])
-
-        bars_1d = sorted([
-            Bar(
-                label_name=x['label_name'],
-                in_series=x['in'],
-                out_series=x['out'],
-                type=x['type'],
-            ) for x in io_series_1d
-        ])
-
         # get timeseries x range in plot widget
         viewbox_state = self.plot_widget.getPlotItem().getViewBox().getState()
         view_range = viewbox_state['viewRange']
         t1, t2 = view_range[0]
+
+        bm_net = BarManager(io_series_net)
+        bm_2d = BarManager(io_series_2d)
+        bm_2d_groundwater = BarManager(io_series_2d_groundwater)
+        bm_1d = BarManager(io_series_1d)
+
+        bm_net.calc_balance(ts, ts_series, t1, t2, net=True)
+        bm_2d.calc_balance(ts, ts_series, t1, t2)
+        bm_2d_groundwater.calc_balance(
+            ts, ts_series, t1, t2,
+            invert=['infiltration/exfiltration (domain exchange)']
+        )
+        bm_1d.calc_balance(ts, ts_series, t1, t2, invert=['1D-2D exchange'])
 
         # init figure
         plt.close()
@@ -632,22 +639,13 @@ class WaterBalanceWidget(QDockWidget):
         # Net #
         # #####
 
-        for b in bars_net:
-            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
-            b.convert_to_net()
-
-        x = np.arange(len(bars_net))
-        xlabels = [b.label_name for b in bars_net]
-        end_balance_in = [b.end_balance_in for b in bars_net]
-        end_balance_out = [b.end_balance_out for b in bars_net]
-
         plt.subplot(221)
         plt.axhline(color='black', lw=.5)
-        bar_in = plt.bar(x, end_balance_in, label='In')
-        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(bm_net.x, bm_net.end_balance_in, label='In')
+        bar_out = plt.bar(bm_net.x, bm_net.end_balance_out, label='Out')
         bar_in[-1].set_hatch(pattern)
         bar_out[-1].set_hatch(pattern)
-        plt.xticks(x, xlabels, rotation=45, ha='right')
+        plt.xticks(bm_net.x, bm_net.xlabels, rotation=45, ha='right')
         plt.title('Net water balance')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
@@ -656,24 +654,16 @@ class WaterBalanceWidget(QDockWidget):
         # 2D #
         # ####
 
-        for b in bars_2d:
-            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
-
-        x = np.arange(len(bars_2d))
-        xlabels = [b.label_name for b in bars_2d]
-        end_balance_in = [b.end_balance_in for b in bars_2d]
-        end_balance_out = [b.end_balance_out for b in bars_2d]
-
         # this axes object will be shared by the other subplots to give them
         # the same y alignment
         ax1 = plt.subplot(234)
 
         plt.axhline(color='black', lw=.5)
-        bar_in = plt.bar(x, end_balance_in, label='In')
-        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(bm_2d.x, bm_2d.end_balance_in, label='In')
+        bar_out = plt.bar(bm_2d.x, bm_2d.end_balance_out, label='Out')
         bar_in[-1].set_hatch(pattern)
         bar_out[-1].set_hatch(pattern)
-        plt.xticks(x, xlabels, rotation=45, ha='right')
+        plt.xticks(bm_2d.x, bm_2d.xlabels, rotation=45, ha='right')
         plt.title('2D surface water domain')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
@@ -682,23 +672,18 @@ class WaterBalanceWidget(QDockWidget):
         # 2D groundwater #
         # ################
 
-        for b in bars_2d_groundwater:
-            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
-            if b.label_name == 'infiltration/exfiltration (domain exchange)':
-                b.invert()
-
-        x = np.arange(len(bars_2d_groundwater))
-        xlabels = [b.label_name for b in bars_2d_groundwater]
-        end_balance_in = [b.end_balance_in for b in bars_2d_groundwater]
-        end_balance_out = [b.end_balance_out for b in bars_2d_groundwater]
-
         plt.subplot(235, sharey=ax1)
         plt.axhline(color='black', lw=.5)
-        bar_in = plt.bar(x, end_balance_in, label='In')
-        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(
+            bm_2d_groundwater.x, bm_2d_groundwater.end_balance_in, label='In')
+        bar_out = plt.bar(
+            bm_2d_groundwater.x, bm_2d_groundwater.end_balance_out,
+            label='Out')
         bar_in[-1].set_hatch(pattern)
         bar_out[-1].set_hatch(pattern)
-        plt.xticks(x, xlabels, rotation=45, ha='right')
+        plt.xticks(
+            bm_2d_groundwater.x, bm_2d_groundwater.xlabels, rotation=45,
+            ha='right')
         plt.title('2D groundwater domain')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
@@ -707,23 +692,13 @@ class WaterBalanceWidget(QDockWidget):
         # 1D #
         # ####
 
-        for b in bars_1d:
-            b.calc_balance(ts, ts_series, t1=t1, t2=t2)
-            if b.label_name == '1D-2D exchange':
-                b.invert()
-
-        x = np.arange(len(bars_1d))
-        xlabels = [b.label_name for b in bars_1d]
-        end_balance_in = [b.end_balance_in for b in bars_1d]
-        end_balance_out = [b.end_balance_out for b in bars_1d]
-
         plt.subplot(236, sharey=ax1)
         plt.axhline(color='black', lw=.5)
-        bar_in = plt.bar(x, end_balance_in, label='In')
-        bar_out = plt.bar(x, end_balance_out, label='Out')
+        bar_in = plt.bar(bm_1d.x, bm_1d.end_balance_in, label='In')
+        bar_out = plt.bar(bm_1d.x, bm_1d.end_balance_out, label='Out')
         bar_in[-1].set_hatch(pattern)
         bar_out[-1].set_hatch(pattern)
-        plt.xticks(x, xlabels, rotation=45, ha='right')
+        plt.xticks(bm_1d.x, bm_1d.xlabels, rotation=45, ha='right')
         plt.title('1D network domain')
         plt.ylabel(r'volume ($m^3$)')
         plt.legend()
@@ -973,7 +948,18 @@ class WaterBalanceWidget(QDockWidget):
                     t = '1d_2d_intersected'
                 else:
                     t = _type.rsplit('_out')[0].rsplit('_in')[0]
-                line_id_to_type[i] = t
+
+                if i not in line_id_to_type:
+                    # business as usual
+                    line_id_to_type[i] = t
+                else:
+                    # NOTE: awful hack for links that have multiple types
+                    val = line_id_to_type[i]
+                    if isinstance(val, list):
+                        val.append(t)
+                    else:
+                        line_id_to_type[i] = [val, t]
+
         # pump_id_to_type = {}
         # for _, id_list in pump_ids.items():
         #     for i in id_list:
@@ -996,25 +982,24 @@ class WaterBalanceWidget(QDockWidget):
             geom = feat.geometry()
             geom.transform(tr_reverse)
             _type = line_id_to_type[feat['id']]
-            try:
-                qgs_lines[_type]
-            except KeyError:
-                qgs_lines[_type] = []
-            qgs_lines[_type].append(geom.asPolyline())
-        qgs_lines['pump_or_whatever'] = []
+
+            if isinstance(_type, list):
+                # NOTE: this means there are multiple types for one link
+                for t in _type:
+                    qgs_lines.setdefault(t, []).append(geom.asPolyline())
+            else:
+                # one type only, business as usual
+                qgs_lines.setdefault(_type, []).append(geom.asPolyline())
         for feat in _get_feature_iterator(pumps, req_filter_pumps):
             geom = feat.geometry()
             geom.transform(tr_reverse)
-            qgs_lines['pump_or_whatever'].append(geom.asPolyline())
+            qgs_lines.setdefault('pump_or_whatever', []).append(
+                geom.asPolyline())
         for feat in _get_feature_iterator(points, req_filter_nodes):
             geom = feat.geometry()
             geom.transform(tr_reverse)
             _type = node_id_to_type[feat['id']]
-            try:
-                qgs_points[_type]
-            except KeyError:
-                qgs_points[_type] = []
-            qgs_points[_type].append(geom.asPoint())
+            qgs_points.setdefault(_type, []).append(geom.asPoint())
 
         self.qgs_lines = qgs_lines
         self.qgs_points = qgs_points
